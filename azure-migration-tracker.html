@@ -1824,6 +1824,47 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
   renderLabApiTest();
 
+  /* ---------------- 로컬 테스트 랩: APIM Policy 탭 ---------------- */
+  function renderLabPolicy() {
+    var body = document.getElementById("labPolicyBody");
+    var tabsHtml = LAB_ROUTES.map(function (r, idx) {
+      return '<button type="button" class="btn' + (idx === 0 ? " active" : "") + '" data-policy-route-idx="' + idx + '">' + r.method + " " + r.path + "</button>";
+    }).join("");
+    body.innerHTML =
+      '<div class="lab-route-tabs">' + tabsHtml + "</div>" +
+      '<textarea class="answer-in" id="labPolicyXmlInput" style="min-height:260px;font-family:var(--font-mono);"></textarea>' +
+      '<div class="lab-input-row" style="margin-top:var(--sp-3);">' +
+      '<label>apikey 헤더 값<input type="text" id="labPolicyApikey" placeholder="예: demo-key-123"></label>' +
+      '<label>요청자 IP<input type="text" id="labPolicyIp" placeholder="예: 10.0.0.99"></label>' +
+      "</div>" +
+      '<button class="btn primary" type="button" id="labPolicyRun">실행</button>' +
+      '<div id="labPolicyResult" class="pcard" style="margin-top:var(--sp-4);"></div>';
+
+    var selectedIdx = 0;
+    function loadXml() { document.getElementById("labPolicyXmlInput").value = LAB_ROUTES[selectedIdx].apimPolicyXml; }
+
+    body.querySelectorAll("[data-policy-route-idx]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        selectedIdx = parseInt(btn.dataset.policyRouteIdx, 10);
+        body.querySelectorAll("[data-policy-route-idx]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        loadXml();
+      });
+    });
+
+    document.getElementById("labPolicyRun").addEventListener("click", function () {
+      var route = LAB_ROUTES[selectedIdx];
+      var xml = document.getElementById("labPolicyXmlInput").value;
+      var input = {
+        apikeyHeader: document.getElementById("labPolicyApikey").value,
+        clientIp: document.getElementById("labPolicyIp").value
+      };
+      renderLabResult(document.getElementById("labPolicyResult"), "실행 결과", runApimMock(route, xml, input));
+    });
+
+    loadXml();
+  }
+  renderLabPolicy();
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

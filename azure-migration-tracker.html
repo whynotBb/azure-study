@@ -321,6 +321,21 @@
   .goto-ref-btn { display: inline-flex; align-items: center; gap: 6px; margin-bottom: var(--sp-5); }
 
   .theme-toggle { position: fixed; bottom: var(--sp-4); right: var(--sp-4); z-index: 20; }
+  .lab-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+  @media (max-width: 720px) { .lab-compare-grid { grid-template-columns: 1fr; } }
+  .lab-result-title { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+  .lab-status-2xx { color: #1a7f37; font-weight: 700; }
+  .lab-status-4xx { color: #b45309; font-weight: 700; }
+  .lab-status-5xx { color: #b91c1c; font-weight: 700; }
+  .lab-headers { font-size: var(--fs-xs); color: var(--text-dim); margin: var(--sp-2) 0; font-family: var(--font-mono); }
+  .lab-trace { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-2); }
+  .lab-trace-row { font-size: var(--fs-xs); color: var(--text-dim); }
+  .lab-trace-row code { color: var(--accent-target); }
+  .lab-input-row { display: flex; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+  .lab-input-row label { font-size: var(--fs-xs); color: var(--text-faint); display: flex; flex-direction: column; gap: 4px; }
+  .lab-input-row input { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; background: var(--bg); color: var(--text); }
+  .lab-route-tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+  .lab-route-tabs button.active { border-color: var(--accent-target); color: var(--accent-target); }
 </style>
 
 <div class="app-shell">
@@ -471,6 +486,51 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         </div>
       </div>
     </section>
+
+    <section class="panel" id="panel-lab-overview" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">09 · Local Test Lab</span>
+        <h1>랩 개요</h1>
+        <p class="desc">Azure 실 접속 권한 없이도, 샘플 Kong 설정과 그 APIM 대응 정책을 로컬 mock 엔진으로 실행해 결과를 비교합니다. 이 페이지의 샘플 데이터를 아래 4개 탭이 공유합니다.</p>
+      </div>
+      <div id="labOverviewBody"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-api-test" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">10 · Local Test Lab</span>
+        <h1>API 테스트</h1>
+        <p class="desc">샘플 라우트를 선택하고 값을 입력해 실행하면, 같은 요청에 대해 Kong mock과 APIM mock이 각각 어떻게 응답하는지 나란히 비교합니다.</p>
+      </div>
+      <div id="labApiTestBody"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-policy" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">11 · Local Test Lab</span>
+        <h1>APIM Policy</h1>
+        <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 7개 정책(check-header, rate-limit, cors, set-header, rewrite-uri, ip-filter, return-response)만 실제 동작을 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다.</p>
+      </div>
+      <div id="labPolicyBody"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-logs" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">12 · Local Test Lab</span>
+        <h1>로그 비교</h1>
+        <p class="desc">Kong/Nginx 로그 샘플을 보고 질문에 맞는 KQL(Kusto)을 직접 작성한 뒤 정답과 비교하세요. 기존 KQL 퀴즈와 달리 실제 로그 라인을 입력 맥락으로 사용합니다.</p>
+      </div>
+      <div id="labLogsBody"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-migration" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">13 · Local Test Lab</span>
+        <h1>마이그레이션</h1>
+        <p class="desc">Kong→APIM 이관 시 놓치기 쉬운 함정을 시나리오로 예측해 보세요. "발생한다/안 한다"를 먼저 판단한 뒤 근거를 확인합니다.</p>
+      </div>
+      <div id="labMigrationBody"></div>
+    </section>
   </div>
 </div>
 
@@ -493,7 +553,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true } };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, lab: true } };
   }
   function loadState() {
     var raw = null;
@@ -550,7 +610,14 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         { id: "data-ref", label: "데이터·인프라 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
         { id: "data-quiz", label: "데이터·인프라 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
       ] },
-    { id: "jira", label: "AIDD·Jira", icon: '<path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 13h6M9 17h4"/>' }
+    { id: "jira", label: "AIDD·Jira", icon: '<path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 13h6M9 17h4"/>' },
+    { id: "lab", label: "로컬 테스트 랩", icon: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>', children: [
+        { id: "lab-overview", label: "랩 개요", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18"/>' },
+        { id: "lab-api-test", label: "API 테스트", icon: '<path d="M4 17l6-6-6-6M12 19h8"/>' },
+        { id: "lab-policy", label: "APIM Policy", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
+        { id: "lab-logs", label: "로그 비교", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
+        { id: "lab-migration", label: "마이그레이션", icon: '<path d="M4 12h16M14 6l6 6-6 6"/>' }
+      ] }
   ];
 
   function navIconSvg(icon) {

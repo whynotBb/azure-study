@@ -1767,6 +1767,63 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       '<div class="lab-trace">' + traceRows + "</div>";
   }
 
+  /* ---------------- 로컬 테스트 랩: API 테스트 탭 ---------------- */
+  function renderLabApiTest() {
+    var body = document.getElementById("labApiTestBody");
+    var tabsHtml = LAB_ROUTES.map(function (r, idx) {
+      return '<button type="button" class="btn' + (idx === 0 ? " active" : "") + '" data-route-idx="' + idx + '">' + r.method + " " + r.path + "</button>";
+    }).join("");
+    body.innerHTML =
+      '<div class="lab-route-tabs">' + tabsHtml + "</div>" +
+      '<div id="labApiTestInputs"></div>' +
+      '<button class="btn primary" type="button" id="labApiTestRun">실행</button>' +
+      '<p class="pwhen" style="margin-top:var(--sp-2);"><strong>안내</strong>이 랩은 학습 편의를 위해 Kong 플러그인을 고정 순서(인증→IP제한→트래픽제어→변환→종료)로 실행합니다. 실제 Kong의 실행 순서는 각 플러그인의 priority 값에 따라 달라질 수 있습니다.</p>' +
+      '<div class="lab-compare-grid" style="margin-top:var(--sp-4);"><div id="labApiTestKong" class="pcard"></div><div id="labApiTestApim" class="pcard"></div></div>';
+
+    var selectedIdx = 0;
+
+    function renderInputs() {
+      var route = LAB_ROUTES[selectedIdx];
+      var inputsBody = document.getElementById("labApiTestInputs");
+      var html = '<div class="lab-input-row">';
+      if (route.inputs.indexOf("apikey") !== -1) {
+        html += '<label>apikey 헤더 값<input type="text" id="labInputApikey" placeholder="예: demo-key-123"></label>';
+      }
+      if (route.inputs.indexOf("clientIp") !== -1) {
+        html += '<label>요청자 IP<input type="text" id="labInputIp" placeholder="예: 10.0.0.99"></label>';
+      }
+      if (route.inputs.length === 0) {
+        html += '<span class="pwhen">이 라우트는 별도 입력 없이 항상 동일하게 동작합니다.</span>';
+      }
+      html += "</div>";
+      inputsBody.innerHTML = html;
+    }
+
+    function currentInput() {
+      var apikeyEl = document.getElementById("labInputApikey");
+      var ipEl = document.getElementById("labInputIp");
+      return { apikeyHeader: apikeyEl ? apikeyEl.value : "", clientIp: ipEl ? ipEl.value : "" };
+    }
+
+    body.querySelectorAll("[data-route-idx]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        selectedIdx = parseInt(btn.dataset.routeIdx, 10);
+        body.querySelectorAll("[data-route-idx]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        renderInputs();
+      });
+    });
+
+    document.getElementById("labApiTestRun").addEventListener("click", function () {
+      var route = LAB_ROUTES[selectedIdx];
+      var input = currentInput();
+      renderLabResult(document.getElementById("labApiTestKong"), "Kong mock", runKongMock(route, input));
+      renderLabResult(document.getElementById("labApiTestApim"), "APIM mock", runApimMock(route, route.apimPolicyXml, input));
+    });
+
+    renderInputs();
+  }
+  renderLabApiTest();
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

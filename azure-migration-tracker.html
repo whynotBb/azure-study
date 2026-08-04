@@ -1497,15 +1497,15 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         '<policies>\n' +
         '  <inbound>\n' +
         '    <base />\n' +
-        '    <check-header name="apikey" failed-check-httpcode="401" failed-check-error-message="Unauthorized" ignore-case="false">\n' +
-        '      <value>demo-key-123</value>\n' +
-        '    </check-header>\n' +
-        '    <rate-limit calls="5" renewal-period="60" />\n' +
         '    <cors allow-credentials="false">\n' +
         '      <allowed-origins><origin>*</origin></allowed-origins>\n' +
         '      <allowed-methods><method>GET</method><method>POST</method></allowed-methods>\n' +
         '      <allowed-headers><header>*</header></allowed-headers>\n' +
         '    </cors>\n' +
+        '    <check-header name="apikey" failed-check-httpcode="401" failed-check-error-message="Unauthorized" ignore-case="false">\n' +
+        '      <value>demo-key-123</value>\n' +
+        '    </check-header>\n' +
+        '    <rate-limit-by-key calls="5" renewal-period="60" counter-key="@(context.Request.IpAddress)" />\n' +
         '  </inbound>\n' +
         '  <backend><base /></backend>\n' +
         '  <outbound><base /></outbound>\n' +
@@ -1594,12 +1594,16 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     }
   ];
 
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
   function renderLabOverview() {
     var body = document.getElementById("labOverviewBody");
     body.innerHTML = LAB_ROUTES.map(function (r) {
       return '<div class="pcard"><div class="pcard-head"><span class="pname"><code>' + r.method + " " + r.path + "</code> — " + r.label + '</span></div>' +
-        '<p class="pwhen"><strong>Kong 설정(요약)</strong></p><div class="code-block">' + r.kongYaml + '</div>' +
-        '<p class="pwhen" style="margin-top:var(--sp-3);"><strong>APIM 대응 정책</strong></p><div class="code-block">' + r.apimPolicyXml + '</div></div>';
+        '<p class="pwhen"><strong>Kong 설정(요약)</strong></p><div class="code-block">' + escapeHtml(r.kongYaml) + '</div>' +
+        '<p class="pwhen" style="margin-top:var(--sp-3);"><strong>APIM 대응 정책</strong></p><div class="code-block">' + escapeHtml(r.apimPolicyXml) + '</div></div>';
     }).join("");
   }
   renderLabOverview();
@@ -1663,7 +1667,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return { statusCode: 200, headers: headers, body: route.backendResponse, trace: trace };
   }
 
-  var APIM_WHITELIST = ["check-header", "rate-limit", "cors", "set-header", "rewrite-uri", "ip-filter", "return-response"];
+  var APIM_WHITELIST = ["check-header", "rate-limit", "rate-limit-by-key", "cors", "set-header", "rewrite-uri", "ip-filter", "return-response"];
 
   function parseApimPolicyXml(xmlString) {
     var doc = new DOMParser().parseFromString(xmlString, "text/xml");
@@ -1681,39 +1685,65 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         trace.push({ policy: tag, effect: "⚠ 이 학습 도구에서는 시뮬레이션 미지원 (구문은 유효)" });
         continue;
       }
-      if (tag === "check-header" && isInbound) {
-        var name = el.getAttribute("name");
-        var httpcode = parseInt(el.getAttribute("failed-check-httpcode"), 10);
-        var values = Array.prototype.map.call(el.querySelectorAll("value"), function (v) { return v.textContent; });
-        var actual = name.toLowerCase() === "apikey" ? input.apikeyHeader : "";
-        if (values.indexOf(actual) === -1) {
-          trace.push({ policy: "check-header", effect: "차단 — " + name + " 값 불일치 (" + httpcode + ")" });
-          return { blocked: true, statusCode: httpcode, body: { message: el.getAttribute("failed-check-error-message") } };
+      if (tag === "check-header") {
+        if (!isInbound) {
+          trace.push({ policy: tag, effect: "이 섹션(" + (isInbound ? "inbound" : "outbound") + ")에서는 시뮬레이션 대상이 아님" });
+        } else {
+          var name = el.getAttribute("name");
+          var httpcode = parseInt(el.getAttribute("failed-check-httpcode"), 10);
+          var ignoreCase = el.getAttribute("ignore-case") === "true";
+          var values = Array.prototype.map.call(el.querySelectorAll("value"), function (v) { return v.textContent; });
+          if (name.toLowerCase() !== "apikey") {
+            trace.push({ policy: "check-header", effect: "이 랩에서는 'apikey' 헤더 값만 입력받을 수 있어 '" + name + "' 헤더는 항상 빈 값으로 시뮬레이션됩니다" });
+          }
+          var actual = name.toLowerCase() === "apikey" ? (input.apikeyHeader || "") : "";
+          var actualCmp = ignoreCase ? actual.toLowerCase() : actual;
+          var valuesCmp = ignoreCase ? values.map(function (v) { return v.toLowerCase(); }) : values;
+          if (valuesCmp.indexOf(actualCmp) === -1) {
+            trace.push({ policy: "check-header", effect: "차단 — " + name + " 값 불일치 (" + httpcode + ")" });
+            return { blocked: true, statusCode: httpcode, body: { message: el.getAttribute("failed-check-error-message") } };
+          }
+          trace.push({ policy: "check-header", effect: "통과 — " + name + " 값 일치" });
         }
-        trace.push({ policy: "check-header", effect: "통과 — " + name + " 값 일치" });
-      } else if (tag === "rate-limit" && isInbound) {
-        var calls = parseInt(el.getAttribute("calls"), 10);
-        var renewal = parseInt(el.getAttribute("renewal-period"), 10);
-        var rl = checkRateLimit(apimRateCounters, route.id, calls, renewal);
-        if (!rl.allowed) {
-          trace.push({ policy: "rate-limit", effect: "차단 — " + calls + "회/" + renewal + "초 초과 (429)" });
-          return { blocked: true, statusCode: 429, body: { message: "Too Many Requests" } };
+      } else if (tag === "rate-limit" || tag === "rate-limit-by-key") {
+        if (!isInbound) {
+          trace.push({ policy: tag, effect: "이 섹션(" + (isInbound ? "inbound" : "outbound") + ")에서는 시뮬레이션 대상이 아님" });
+        } else {
+          var calls = parseInt(el.getAttribute("calls"), 10);
+          var renewal = parseInt(el.getAttribute("renewal-period"), 10);
+          var rl = checkRateLimit(apimRateCounters, route.id, calls, renewal);
+          if (!rl.allowed) {
+            trace.push({ policy: tag, effect: "차단 — " + calls + "회/" + renewal + "초 초과 (429)" });
+            return { blocked: true, statusCode: 429, body: { message: "Too Many Requests" } };
+          }
+          trace.push({ policy: tag, effect: "통과 — 남은 호출 " + rl.remaining + "회" });
         }
-        trace.push({ policy: "rate-limit", effect: "통과 — 남은 호출 " + rl.remaining + "회" });
-      } else if (tag === "ip-filter" && isInbound) {
-        var action = el.getAttribute("action");
-        var addresses = Array.prototype.map.call(el.querySelectorAll("address"), function (a) { return a.textContent; });
-        var matched = addresses.indexOf(input.clientIp) !== -1;
-        var isBlocked = action === "forbid" ? matched : !matched;
-        if (isBlocked) {
-          trace.push({ policy: "ip-filter", effect: "차단 — " + input.clientIp + " (action=" + action + ") (403)" });
-          return { blocked: true, statusCode: 403, body: { message: "Forbidden" } };
+      } else if (tag === "ip-filter") {
+        if (!isInbound) {
+          trace.push({ policy: tag, effect: "이 섹션(" + (isInbound ? "inbound" : "outbound") + ")에서는 시뮬레이션 대상이 아님" });
+        } else {
+          var action = el.getAttribute("action");
+          var addresses = Array.prototype.map.call(el.querySelectorAll("address"), function (a) { return a.textContent; });
+          var matched = addresses.indexOf(input.clientIp) !== -1;
+          var isBlocked = action === "forbid" ? matched : !matched;
+          if (isBlocked) {
+            trace.push({ policy: "ip-filter", effect: "차단 — " + input.clientIp + " (action=" + action + ") (403)" });
+            return { blocked: true, statusCode: 403, body: { message: "Forbidden" } };
+          }
+          trace.push({ policy: "ip-filter", effect: "통과 — action=" + action });
         }
-        trace.push({ policy: "ip-filter", effect: "통과 — action=" + action });
-      } else if (tag === "rewrite-uri" && isInbound) {
-        trace.push({ policy: "rewrite-uri", effect: "경로를 " + el.getAttribute("template") + "로 재작성" });
-      } else if (tag === "cors" && isInbound) {
-        trace.push({ policy: "cors", effect: "CORS 헤더 추가 (Access-Control-Allow-Origin 등)" });
+      } else if (tag === "rewrite-uri") {
+        if (!isInbound) {
+          trace.push({ policy: tag, effect: "이 섹션(" + (isInbound ? "inbound" : "outbound") + ")에서는 시뮬레이션 대상이 아님" });
+        } else {
+          trace.push({ policy: "rewrite-uri", effect: "경로를 " + el.getAttribute("template") + "로 재작성" });
+        }
+      } else if (tag === "cors") {
+        if (!isInbound) {
+          trace.push({ policy: tag, effect: "이 섹션(" + (isInbound ? "inbound" : "outbound") + ")에서는 시뮬레이션 대상이 아님" });
+        } else {
+          trace.push({ policy: "cors", effect: "CORS 헤더 추가 (Access-Control-Allow-Origin 등)" });
+        }
       } else if (tag === "set-header") {
         var hName = el.getAttribute("name");
         var valueEl = el.querySelector("value");
@@ -1838,10 +1868,17 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       '<label>요청자 IP<input type="text" id="labPolicyIp" placeholder="예: 10.0.0.99"></label>' +
       "</div>" +
       '<button class="btn primary" type="button" id="labPolicyRun">실행</button>' +
+      '<button class="btn" type="button" id="labPolicyResetCounters" style="margin-left:var(--sp-2);">카운터 초기화</button>' +
+      '<p class="pwhen" style="margin-top:var(--sp-2);">API 테스트 탭과 요율 제한(rate-limit) 카운터를 공유합니다. 429가 계속 뜨면 여기를 눌러 초기화하세요.</p>' +
       '<div id="labPolicyResult" class="pcard" style="margin-top:var(--sp-4);"></div>';
 
     var selectedIdx = 0;
     function loadXml() { document.getElementById("labPolicyXmlInput").value = LAB_ROUTES[selectedIdx].apimPolicyXml; }
+
+    document.getElementById("labPolicyResetCounters").addEventListener("click", function () {
+      apimRateCounters = {};
+      kongRateCounters = {};
+    });
 
     body.querySelectorAll("[data-policy-route-idx]").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -1872,6 +1909,14 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     '{"client_ip":"203.0.113.10","method":"GET","request_uri":"/users/1","status":403,"latencies":{"request":5},"started_at":1735600010}\n' +
     '{"client_ip":"198.51.100.20","method":"GET","request_uri":"/legacy/report","status":503,"latencies":{"request":1},"started_at":1735600020}\n' +
     '{"client_ip":"203.0.113.10","method":"GET","request_uri":"/orders","status":200,"latencies":{"request":812},"started_at":1735600030}';
+
+  var LAB_AZURE_LOG_SAMPLE =
+    "TimeGenerated | ApiId | Method | Url | ResponseCode | BackendResponseCode | CallerIpAddress | TotalTime | BackendTime\n" +
+    "2024-12-30T20:26:40Z | orders-api | GET | /orders | 200 | 200 | 203.0.113.10 | 42 | 38\n" +
+    "2024-12-30T20:26:45Z | orders-api | GET | /orders | 429 | 0 | 203.0.113.11 | 3 | 0\n" +
+    "2024-12-30T20:26:50Z | users-api | GET | /users/1 | 403 | 0 | 203.0.113.10 | 5 | 0\n" +
+    "2024-12-30T20:27:00Z | legacy-api | GET | /legacy/report | 503 | 0 | 198.51.100.20 | 1 | 0\n" +
+    "2024-12-30T20:27:10Z | orders-api | GET | /orders | 200 | 200 | 203.0.113.10 | 812 | 790";
 
   var LAB_LOG_QUESTIONS = [
     {
@@ -1904,6 +1949,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   function renderLabLogs() {
     var body = document.getElementById("labLogsBody");
     var html = '<h2 class="section-title">Kong/Nginx 원본 로그 샘플</h2><div class="code-block">' + LAB_KONG_LOG_SAMPLE + "</div>";
+    html += '<h2 class="section-title" style="margin-top:var(--sp-6);">Azure 쪽: ApiManagementGatewayLogs 진단 로그 샘플(동일 트래픽)</h2><div class="code-block">' + LAB_AZURE_LOG_SAMPLE + "</div>";
     html += '<h2 class="section-title" style="margin-top:var(--sp-6);">질문</h2>';
     LAB_LOG_QUESTIONS.forEach(function (item, idx) {
       html += '<div class="quiz-card"><div class="quiz-head"><h3>질문 ' + (idx + 1) + '</h3></div><div class="quiz-body">' +
@@ -1935,9 +1981,9 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       reason: "Key Vault에는 리프 인증서뿐 아니라 전체 인증서 체인(중간 인증서 포함)이 포함된 .pfx를 등록해야 합니다. 체인이 빠지면 클라이언트가 인증서 신뢰 경로를 완성하지 못해 TLS 핸드셰이크가 실패할 수 있습니다."
     },
     {
-      scenario: "Kong 플러그인에서 요청 헤더 이름을 `X-Request-ID`로 검사하도록 만들었는데, 클라이언트가 `x-request-id`(소문자)로 보냈다. Kong에서 정상 인식됐다면 APIM의 `check-header`에서도 그대로 정상 인식될까?",
-      answer: "설정에 따라 다릅니다 — 기본값이 아닙니다.",
-      reason: "HTTP 헤더 이름은 원래 대소문자 구분이 없지만, APIM의 check-header 정책은 `ignore-case` 속성이 필수이며 명시적으로 `true`로 설정하지 않으면 대소문자를 구분해 비교합니다. Kong 쪽 동작만 보고 그대로 옮기면 놓치기 쉬운 지점입니다."
+      scenario: "Kong 플러그인에서 `apikey` 헤더 값을 대소문자 관계없이 비교하도록 커스텀했는데(예: `DEMO-KEY-123`도 통과), 이를 APIM `check-header`로 그대로 옮기면서 `ignore-case` 속성을 설정하지 않았다(기본값 `false`). 클라이언트가 대소문자만 다른 값(`DEMO-KEY-123`)을 보내면 APIM에서도 Kong과 동일하게 통과할까?",
+      answer: "아니요, 통과하지 않을 수 있습니다.",
+      reason: "`check-header` 정책의 `ignore-case` 속성은 헤더 **값**(value) 비교에만 적용되며 기본값은 `false`입니다 — 헤더 **이름** 매칭과는 무관합니다(HTTP 헤더 이름 자체는 대소문자 구분 없이 매칭됩니다). `ignore-case`를 명시적으로 `true`로 설정하지 않으면 값 비교 시 대소문자를 구분하므로, Kong에서 대소문자 무관하게 통과시키던 값이 APIM에서는 차단될 수 있습니다."
     },
     {
       scenario: "Kong의 rate-limiting을 '분당 60회'로 쓰다가 APIM `rate-limit` 정책에 `calls=60, renewal-period=60`으로 그대로 옮겼다. 두 시스템의 카운팅 창(윈도우) 계산 방식이 완전히 동일할까?",
@@ -1952,7 +1998,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     {
       scenario: "Kong의 CORS 플러그인은 프리플라이트(OPTIONS) 요청을 항상 200으로 응답하도록 커스텀했는데, APIM `cors` 정책을 기본값(`terminate-unmatched-request` 미설정)으로 이관했다. Origin이 허용 목록에 없는 프리플라이트 요청에서 Kong과 동일하게 동작할까?",
       answer: "예, 동일하게 동작합니다(우연히).",
-      reason: "`terminate-unmatched-request`의 기본값이 false이므로, Origin이 매칭되지 않아도 요청은 계속 진행되어 결과적으로 200이 반환됩니다. 다만 이는 '의도한 동작'이 아니라 기본값이 우연히 비슷하게 보이는 것이라, 다른 시나리오(GET/HEAD 단순 요청)에서는 CORS 헤더 자체가 붙지 않는 차이가 생길 수 있습니다."
+      reason: "`terminate-unmatched-request`의 기본값이 `false`이므로, Origin이 매칭되지 않는 프리플라이트(OPTIONS) 요청은 다른 cors 정책이 없으면 빈 200 OK로 즉시 종료되어(백엔드로 전달되지 않음), 커스텀 프리플라이트 응답을 흉내내던 Kong 설정과 결과적으로 비슷한 200이 나옵니다. 다만 GET/HEAD 같은 단순 요청에서는 이 옵션이 요청을 그대로 통과시키는(CORS 헤더만 안 붙는) 다른 의미로 작동하므로 두 경로를 혼동하면 안 됩니다. (참고: 공식 문서도 속성표와 'Common configuration issues' 절에서 기본값을 다르게 적고 있어 문서 자체에 모호함이 있습니다.)"
     },
     {
       scenario: "Kong 라우트가 `strip_path: true`로 `/api/v1` 접두사를 벗겨내고 백엔드로 전달했는데, APIM에서는 API의 '기본 경로(base path)' 설정을 그대로 유지한 채 백엔드 URL만 바꿔치기했다. 요청 경로가 깨질까?",

@@ -2180,6 +2180,172 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
   renderLabMigration();
 
+  /* ---------------- Kusto 실행기: 가상 테이블 + 엔진 ---------------- */
+  var AM_GATEWAY_LOGS = [
+    { TimeGenerated: "2026-08-06T09:00:05Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 82, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-06T09:00:41Z", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 118, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-06T09:01:12Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 401, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 9, CallerIpAddress: "203.0.113.12" },
+    { TimeGenerated: "2026-08-06T09:01:47Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 429, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 4, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-06T09:02:03Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 429, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 5, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-06T09:02:30Z", ApiId: "users-api", Method: "GET", Url: "/users/1", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 640, CallerIpAddress: "203.0.113.20" },
+    { TimeGenerated: "2026-08-06T09:03:01Z", ApiId: "users-api", Method: "GET", Url: "/users/2", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 95, CallerIpAddress: "203.0.113.21" },
+    { TimeGenerated: "2026-08-06T09:03:44Z", ApiId: "users-api", Method: "GET", Url: "/users/3", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 6, CallerIpAddress: "203.0.113.22" },
+    { TimeGenerated: "2026-08-06T09:04:12Z", ApiId: "users-api", Method: "GET", Url: "/users/4", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 88, CallerIpAddress: "203.0.113.20" },
+    { TimeGenerated: "2026-08-06T09:04:55Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 730, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-06T09:05:20Z", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 101, CallerIpAddress: "203.0.113.12" },
+    { TimeGenerated: "2026-08-06T09:05:58Z", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 3, CallerIpAddress: "203.0.113.30" },
+    { TimeGenerated: "2026-08-06T09:06:33Z", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 3, CallerIpAddress: "203.0.113.30" },
+    { TimeGenerated: "2026-08-06T09:07:02Z", ApiId: "users-api", Method: "GET", Url: "/users/5", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 92, CallerIpAddress: "203.0.113.21" },
+    { TimeGenerated: "2026-08-06T09:07:40Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 79, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-06T09:08:15Z", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 850, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-06T09:08:50Z", ApiId: "users-api", Method: "GET", Url: "/users/6", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 100, CallerIpAddress: "203.0.113.22" },
+    { TimeGenerated: "2026-08-06T09:09:25Z", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 113, CallerIpAddress: "203.0.113.12" }
+  ];
+
+  function kustoParseLiteral(raw) {
+    raw = raw.trim();
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+    return raw.replace(/^"(.*)"$/, "$1");
+  }
+
+  function kustoCompare(a, op, b) {
+    if (op === "==") return a == b;
+    if (op === "!=") return a != b;
+    if (op === ">") return a > b;
+    if (op === "<") return a < b;
+    if (op === ">=") return a >= b;
+    if (op === "<=") return a <= b;
+    if (op === "contains") return String(a).indexOf(String(b)) !== -1;
+    if (op === "!contains") return String(a).indexOf(String(b)) === -1;
+    throw new Error("지원하지 않는 비교 연산자: " + op);
+  }
+
+  function kustoApplyWhere(rows, clause) {
+    var conditions = clause.split(/\s+and\s+/i).map(function (c) {
+      var m = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)\s*(.+)$/);
+      if (!m) throw new Error("조건을 해석할 수 없습니다: " + c);
+      return { col: m[1], op: m[2], val: kustoParseLiteral(m[3]) };
+    });
+    return rows.filter(function (row) {
+      return conditions.every(function (c) { return kustoCompare(row[c.col], c.op, c.val); });
+    });
+  }
+
+  function kustoApplyProject(rows, clause) {
+    var cols = clause.split(",").map(function (s) { return s.trim(); });
+    return rows.map(function (row) {
+      var out = {};
+      cols.forEach(function (c) { out[c] = row[c]; });
+      return out;
+    });
+  }
+
+  function kustoBinValue(iso, col, amount, unit) {
+    var ms = amount * (unit === "h" ? 3600000 : unit === "m" ? 60000 : 1000);
+    var t = new Date(iso).getTime();
+    return new Date(Math.floor(t / ms) * ms).toISOString();
+  }
+
+  function kustoApplySummarize(rows, clause) {
+    var m = clause.match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?\s+by\s+(.+)$/);
+    if (!m) throw new Error("summarize 문법을 해석할 수 없습니다: " + clause);
+    var aggToken = m[1], aggCol = m[2], byClause = m[3].trim();
+    var byBin = byClause.match(/^bin\(\s*(\w+)\s*,\s*(\d+)(m|h|s)\s*\)$/);
+    var groups = {};
+    rows.forEach(function (row) {
+      var key = byBin ? kustoBinValue(row[byBin[1]], byBin[1], Number(byBin[2]), byBin[3]) : row[byClause];
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return Object.keys(groups).sort().map(function (key) {
+      var group = groups[key];
+      var value;
+      if (aggToken === "count()") value = group.length;
+      else if (aggToken === "avg") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0) / group.length;
+      else if (aggToken === "sum") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0);
+      else if (aggToken === "max") value = Math.max.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+      else if (aggToken === "min") value = Math.min.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+      var out = {};
+      out[byBin ? byBin[1] : byClause] = key;
+      out[aggToken === "count()" ? "count_" : aggToken + "_" + aggCol] = value;
+      return out;
+    });
+  }
+
+  function kustoApplyTopOrSort(rows, clause, isTop) {
+    var m = isTop
+      ? clause.match(/^(\d+)\s+by\s+(\w+)(\s+asc|\s+desc)?$/)
+      : clause.match(/^(\w+)(\s+asc|\s+desc)?$/);
+    if (!m) throw new Error((isTop ? "top" : "sort by") + " 문법을 해석할 수 없습니다: " + clause);
+    var col = isTop ? m[2] : m[1];
+    var dir = (isTop ? m[3] : m[2]) || " desc";
+    var sorted = rows.slice().sort(function (a, b) {
+      if (a[col] < b[col]) return dir.indexOf("asc") !== -1 ? -1 : 1;
+      if (a[col] > b[col]) return dir.indexOf("asc") !== -1 ? 1 : -1;
+      return 0;
+    });
+    return isTop ? sorted.slice(0, Number(m[1])) : sorted;
+  }
+
+  var KUSTO_STAGE_HANDLERS = {
+    where: function (rows, clause) { return kustoApplyWhere(rows, clause); },
+    project: function (rows, clause) { return kustoApplyProject(rows, clause); },
+    summarize: function (rows, clause) { return kustoApplySummarize(rows, clause); },
+    top: function (rows, clause) { return kustoApplyTopOrSort(rows, clause, true); },
+    sort: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
+    order: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
+    take: function (rows, clause) { return rows.slice(0, Number(clause.trim())); },
+    limit: function (rows, clause) { return rows.slice(0, Number(clause.trim())); }
+  };
+
+  function runKustoQuery(queryText) {
+    var text = (queryText || "").trim();
+    if (!text) return { error: true, message: "쿼리가 비어 있습니다." };
+
+    var letRe = /^let\s+(\w+)\s*=\s*(.+?);\s*/;
+    var letMatch, bindings = {};
+    while ((letMatch = text.match(letRe))) {
+      bindings[letMatch[1]] = letMatch[2].trim();
+      text = text.slice(letMatch[0].length);
+    }
+    Object.keys(bindings).forEach(function (name) {
+      text = text.split(new RegExp("\\b" + name + "\\b", "g")).join(bindings[name]);
+    });
+
+    var stages = text.split("\n").join(" ").split("|").map(function (s) { return s.trim(); }).filter(Boolean);
+    var tableName = stages.shift();
+    if (tableName !== "ApiManagementGatewayLogs") {
+      return { error: true, stageIndex: 0, message: "알 수 없는 테이블: " + tableName + " (이 실행기는 ApiManagementGatewayLogs만 지원합니다)" };
+    }
+
+    var rows = AM_GATEWAY_LOGS.slice();
+    var trace = [{ stage: "ApiManagementGatewayLogs", resultCount: rows.length }];
+    var chartHint = false;
+
+    for (var i = 0; i < stages.length; i++) {
+      var stage = stages[i];
+      var opMatch = stage.match(/^(\w+)\s*([\s\S]*)$/);
+      var op = opMatch ? opMatch[1] : "";
+      var clause = opMatch ? opMatch[2] : "";
+      if (op === "render") { chartHint = clause.trim() === "timechart"; continue; }
+      var handler = KUSTO_STAGE_HANDLERS[op];
+      if (!handler) {
+        return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: 지원하지 않는 연산자 `" + op + "` (이 시뮬레이터의 화이트리스트 밖입니다. 실제 Kusto에서는 지원될 수 있습니다)", trace: trace };
+      }
+      try {
+        rows = handler(rows, clause);
+      } catch (e) {
+        return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: " + e.message, trace: trace };
+      }
+      trace.push({ stage: op, resultCount: rows.length });
+    }
+
+    var columns = rows.length ? Object.keys(rows[0]) : [];
+    return { error: false, columns: columns, rows: rows, trace: trace, chartHint: chartHint };
+  }
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

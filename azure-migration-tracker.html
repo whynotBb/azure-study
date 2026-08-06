@@ -2346,6 +2346,69 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return { error: false, columns: columns, rows: rows, trace: trace, chartHint: chartHint };
   }
 
+  var KUSTO_PRACTICE_QUESTIONS = [
+    { id: "kq1", prompt: "실패(IsRequestSuccess=false)한 요청만 최신순으로 최대 20건 조회하는 쿼리를 작성하세요.",
+      answer: "ApiManagementGatewayLogs\n| where IsRequestSuccess == false\n| sort by TimeGenerated desc\n| take 20" },
+    { id: "kq2", prompt: "API별 평균 처리 시간(TotalTime)을 구해 느린 순서로 정렬하세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize avg(TotalTime) by ApiId\n| sort by avg_TotalTime desc" },
+    { id: "kq3", prompt: "orders-api 요청만 골라 ApiId/ResponseCode/TotalTime만 남기고, 처리 시간이 가장 긴 5건을 보여주세요.",
+      answer: 'ApiManagementGatewayLogs\n| where ApiId == "orders-api"\n| project ApiId, ResponseCode, TotalTime\n| top 5 by TotalTime desc' }
+  ];
+
+  function renderKustoResult(result) {
+    if (result.error) {
+      return '<div class="kusto-error">' + result.message + '</div>';
+    }
+    if (!result.rows.length) {
+      return '<p class="empty-hint">결과 0건.</p>';
+    }
+    var thead = "<tr>" + result.columns.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr>";
+    var tbody = result.rows.map(function (row) {
+      return "<tr>" + result.columns.map(function (c) { return "<td>" + row[c] + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    var chartNote = result.chartHint ? '<p class="empty-hint">render timechart 감지됨 — 이 로컬 실행기는 실제 차트 대신 표로 표시합니다.</p>' : "";
+    return chartNote + '<div class="kusto-table-scroll"><table class="kusto-table">' + thead + tbody + "</table></div>";
+  }
+
+  function initKustoLab() {
+    var body = document.getElementById("labKustoBody");
+    var presetHtml = KUSTO_PRACTICE_QUESTIONS.map(function (q) {
+      return '<div class="quiz-card"><div class="quiz-body"><p class="quiz-scenario">' + q.prompt + '</p>' +
+        '<div class="quiz-actions"><button class="btn" type="button" data-fill="' + q.id + '">이 쿼리를 편집창에 채우기</button>' +
+        '<button class="btn" type="button" data-reveal="' + q.id + '">정답 쿼리 실행 결과 보기</button></div>' +
+        '<div class="answer-reveal" id="kustoAnswer-' + q.id + '"></div></div></div>';
+    }).join("");
+
+    body.innerHTML =
+      '<div class="kusto-preset-grid">' + presetHtml + '</div>' +
+      '<textarea class="kusto-editor" id="kustoQueryInput" placeholder="ApiManagementGatewayLogs\n| where ...">' + (state.quiz["kusto-editor"] || "") + '</textarea>' +
+      '<div class="quiz-actions" style="margin-top:var(--sp-3);"><button class="btn primary" type="button" id="kustoRunBtn">실행</button></div>' +
+      '<div id="kustoResultArea"></div>';
+
+    var input = document.getElementById("kustoQueryInput");
+    input.addEventListener("input", function () { state.quiz["kusto-editor"] = input.value; persist(); });
+
+    var resultArea = document.getElementById("kustoResultArea");
+    document.getElementById("kustoRunBtn").addEventListener("click", function () {
+      resultArea.innerHTML = renderKustoResult(runKustoQuery(input.value));
+    });
+
+    KUSTO_PRACTICE_QUESTIONS.forEach(function (q) {
+      body.querySelector('[data-fill="' + q.id + '"]').addEventListener("click", function () {
+        input.value = q.answer;
+        state.quiz["kusto-editor"] = input.value;
+        persist();
+      });
+      body.querySelector('[data-reveal="' + q.id + '"]').addEventListener("click", function () {
+        var answerResult = runKustoQuery(q.answer);
+        document.getElementById("kustoAnswer-" + q.id).innerHTML =
+          '<div class="code-block">' + q.answer + "</div>" + renderKustoResult(answerResult);
+        document.getElementById("kustoAnswer-" + q.id).classList.add("show");
+      });
+    });
+  }
+  initKustoLab();
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

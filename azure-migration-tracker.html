@@ -2409,6 +2409,62 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
   initKustoLab();
 
+  /* ---------------- 알림 시뮬레이터: 샘플 메트릭 + 평가 엔진 ---------------- */
+  var AM_METRIC_SERIES = (function () {
+    var points = [];
+    for (var t = 0; t < 60; t++) {
+      var value;
+      if (t >= 20 && t <= 35) {
+        value = 400 + Math.round(500 * Math.sin((t - 20) / 15 * Math.PI));
+      } else {
+        value = 90 + (t % 5) * 12;
+      }
+      points.push({ t: t, value: value });
+    }
+    return points;
+  })();
+
+  function alertAggregateWindow(points, aggregation) {
+    var values = points.map(function (p) { return p.value; });
+    if (aggregation === "Average") return values.reduce(function (s, v) { return s + v; }, 0) / values.length;
+    if (aggregation === "Maximum") return Math.max.apply(null, values);
+    if (aggregation === "Minimum") return Math.min.apply(null, values);
+    if (aggregation === "Total") return values.reduce(function (s, v) { return s + v; }, 0);
+    if (aggregation === "Count") return values.length;
+    throw new Error("지원하지 않는 집계 방식: " + aggregation);
+  }
+
+  function alertCompareThreshold(value, op, threshold) {
+    if (op === ">") return value > threshold;
+    if (op === "<") return value < threshold;
+    if (op === ">=") return value >= threshold;
+    if (op === "<=") return value <= threshold;
+    throw new Error("지원하지 않는 임계값 연산자: " + op);
+  }
+
+  function evaluateAlertRule(config) {
+    var series = config.metricSeries;
+    var lastMinute = series[series.length - 1].t;
+    var results = [];
+    var wasBreached = false;
+
+    for (var t = config.lookbackMin; t <= lastMinute; t += config.evalFrequencyMin) {
+      var windowPoints = series.filter(function (p) { return p.t > t - config.lookbackMin && p.t <= t; });
+      if (!windowPoints.length) {
+        results.push({ evalTime: t, aggregatedValue: null, breached: false, transition: null, note: "데이터 부족" });
+        continue;
+      }
+      var aggregatedValue = alertAggregateWindow(windowPoints, config.aggregation);
+      var breached = alertCompareThreshold(aggregatedValue, config.thresholdOp, config.thresholdValue);
+      var transition = null;
+      if (breached && !wasBreached) transition = "fired";
+      else if (!breached && wasBreached) transition = "resolved";
+      wasBreached = breached;
+      results.push({ evalTime: t, aggregatedValue: aggregatedValue, breached: breached, transition: transition, note: null });
+    }
+    return results;
+  }
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

@@ -341,7 +341,7 @@
   .kusto-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
   .kusto-table th, .kusto-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; white-space: nowrap; }
   .kusto-table th { background: var(--bg-inset); font-weight: 700; }
-  .kusto-error { color: #b91c1c; font-size: var(--fs-sm); margin-top: var(--sp-2); }
+  .kusto-error { color: var(--critical); font-size: var(--fs-sm); margin-top: var(--sp-2); }
   .kusto-preset-grid { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-4); }
   .alert-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
   .alert-form-grid label { font-size: var(--fs-xs); color: var(--text-faint); display: flex; flex-direction: column; gap: 4px; }
@@ -610,7 +610,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, azuremonitor: true, lab: true } };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, azuremonitor: true, lab: true } };
   }
   function loadState() {
     var raw = null;
@@ -1504,7 +1504,27 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       { name: "join — 테이블 결합", code: "join", url: "https://learn.microsoft.com/ko-kr/kusto/query/join-operator",
         easy: "OperationId 같은 공통 키로 두 테이블(예: AppRequests와 AppExceptions)을 연결합니다. 이 프로젝트의 로컬 Kusto 실행기는 join을 지원하지 않습니다 — 정확히 재현하기 어려워 화이트리스트에서 제외했습니다.",
         when: "실패한 요청과 그 원인 예외를 함께 보고 싶을 때 (실제 Azure Monitor에서만 사용 가능, 이 프로젝트의 로컬 실행기에서는 미지원)",
-        example: 'AppRequests\n| where Success == false\n| join kind=inner (AppExceptions) on OperationId\n| project Name, ExceptionType' }
+        example: 'AppRequests\n| where Success == false\n| join kind=inner (AppExceptions) on OperationId\n| project Name, ExceptionType' },
+      { name: "let — 변수 선언", code: "let", url: "https://learn.microsoft.com/ko-kr/kusto/query/let-statement",
+        easy: "쿼리 안에서 값이나 표현식에 이름을 붙여 재사용합니다. 세미콜론(;)으로 문장을 끝내고, 여러 개를 이어서 선언할 수 있습니다.",
+        when: "같은 값을 쿼리 여러 곳에서 반복해서 쓸 때, 임계값처럼 나중에 바꾸기 쉽게 하고 싶을 때",
+        example: "let threshold = 500;\nApiManagementGatewayLogs\n| where TotalTime > threshold" },
+      { name: "project — 컬럼 선택", code: "project", url: "https://learn.microsoft.com/ko-kr/kusto/query/project-operator",
+        easy: "필요한 컬럼만 골라 남깁니다. SQL의 SELECT 컬럼 목록과 비슷한 역할입니다.",
+        when: "전체 컬럼 중 일부만 보고 싶을 때, 결과를 간결하게 만들고 싶을 때",
+        example: "ApiManagementGatewayLogs\n| project ApiId, ResponseCode, TotalTime" },
+      { name: "sort by — 정렬", code: "sort by", url: "https://learn.microsoft.com/ko-kr/kusto/query/sort-operator",
+        easy: "지정한 컬럼 기준으로 전체 결과를 정렬합니다. desc(기본값)/asc로 방향을 지정합니다. order by는 sort by의 동의어입니다.",
+        when: "top처럼 개수를 자르지 않고 전체를 정렬만 하고 싶을 때",
+        example: "ApiManagementGatewayLogs\n| sort by TotalTime desc" },
+      { name: "take — 결과 개수 제한", code: "take", url: "https://learn.microsoft.com/ko-kr/kusto/query/take-operator",
+        easy: "결과에서 지정한 개수만큼만 행을 가져옵니다. limit은 take의 동의어입니다.",
+        when: "정렬 없이 그냥 앞에서부터 N건만 빠르게 보고 싶을 때",
+        example: "ApiManagementGatewayLogs\n| take 20" },
+      { name: "render — 차트로 표시", code: "render", url: "https://learn.microsoft.com/ko-kr/kusto/query/render-operator",
+        easy: "쿼리 결과를 표가 아니라 차트(시계열, 막대 등)로 그리라고 지시합니다. 반드시 파이프라인의 마지막에 와야 합니다.",
+        when: "시간대별 추이처럼 시각화가 필요한 결과를 만들 때",
+        example: "ApiManagementGatewayLogs\n| summarize avg(TotalTime) by bin(TimeGenerated, 10m)\n| render timechart" }
     ] },
     { cat: "알림 규칙(Alert Rules)", anchor: "am-alerts", items: [
       { name: "알림 시그널 유형", code: "Signal type", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/alerts-types",
@@ -2207,7 +2227,9 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     if (raw === "true") return true;
     if (raw === "false") return false;
     if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
-    return raw.replace(/^"(.*)"$/, "$1");
+    var strMatch = raw.match(/^"(.*)"$/);
+    if (strMatch) return strMatch[1];
+    throw new Error("문자열 값은 큰따옴표로 감싸야 합니다: " + raw);
   }
 
   function kustoCompare(a, op, b) {
@@ -2296,9 +2318,22 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     top: function (rows, clause) { return kustoApplyTopOrSort(rows, clause, true); },
     sort: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
     order: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
-    take: function (rows, clause) { return rows.slice(0, Number(clause.trim())); },
-    limit: function (rows, clause) { return rows.slice(0, Number(clause.trim())); }
+    take: function (rows, clause) { var n = Number(clause.trim()); if (isNaN(n)) throw new Error("숫자가 아닙니다: " + clause.trim()); return rows.slice(0, n); },
+    limit: function (rows, clause) { var n = Number(clause.trim()); if (isNaN(n)) throw new Error("숫자가 아닙니다: " + clause.trim()); return rows.slice(0, n); }
   };
+
+  function kustoExtractColRefs(op, clause) {
+    if (op === "where") {
+      return clause.split(/\s+and\s+/i).map(function (c) {
+        var m = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)/);
+        return m ? m[1] : null;
+      }).filter(Boolean);
+    }
+    if (op === "project") return clause.split(",").map(function (s) { return s.trim(); });
+    if (op === "top") { var m1 = clause.match(/by\s+(\w+)/); return m1 ? [m1[1]] : []; }
+    if (op === "sort" || op === "order") { var m2 = clause.replace(/^by\s+/, "").match(/^(\w+)/); return m2 ? [m2[1]] : []; }
+    return [];
+  }
 
   function runKustoQuery(queryText) {
     var text = (queryText || "").trim();
@@ -2323,22 +2358,37 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     var rows = AM_GATEWAY_LOGS.slice();
     var trace = [{ stage: "ApiManagementGatewayLogs", resultCount: rows.length }];
     var chartHint = false;
+    var currentColumns = rows.length ? Object.keys(rows[0]) : [];
 
     for (var i = 0; i < stages.length; i++) {
       var stage = stages[i];
       var opMatch = stage.match(/^(\w+)\s*([\s\S]*)$/);
       var op = opMatch ? opMatch[1] : "";
       var clause = opMatch ? opMatch[2] : "";
-      if (op === "render") { chartHint = clause.trim() === "timechart"; continue; }
+      if (op === "render") {
+        if (i !== stages.length - 1) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: render는 파이프라인의 마지막 스테이지에서만 사용할 수 있습니다", trace: trace };
+        }
+        chartHint = clause.trim() === "timechart";
+        continue;
+      }
       var handler = KUSTO_STAGE_HANDLERS[op];
       if (!handler) {
         return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: 지원하지 않는 연산자 `" + op + "` (이 시뮬레이터의 화이트리스트 밖입니다. 실제 Kusto에서는 지원될 수 있습니다)", trace: trace };
+      }
+      if (currentColumns) {
+        var badCols = kustoExtractColRefs(op, clause).filter(function (c) { return currentColumns.indexOf(c) === -1; });
+        if (badCols.length) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+        }
       }
       try {
         rows = handler(rows, clause);
       } catch (e) {
         return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: " + e.message, trace: trace };
       }
+      if (op === "project") currentColumns = clause.split(",").map(function (s) { return s.trim(); });
+      else if (op === "summarize") currentColumns = null;
       trace.push({ stage: op, resultCount: rows.length });
     }
 
@@ -2355,19 +2405,28 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       answer: 'ApiManagementGatewayLogs\n| where ApiId == "orders-api"\n| project ApiId, ResponseCode, TotalTime\n| top 5 by TotalTime desc' }
   ];
 
+  function renderKustoTrace(trace) {
+    if (!trace || !trace.length) return "";
+    var rows = trace.map(function (t) {
+      return '<div class="lab-trace-row"><code>' + escapeHtml(t.stage) + "</code> → " + t.resultCount + "건</div>";
+    }).join("");
+    return '<div class="lab-trace">' + rows + "</div>";
+  }
+
   function renderKustoResult(result) {
+    var traceHtml = renderKustoTrace(result.trace);
     if (result.error) {
-      return '<div class="kusto-error">' + escapeHtml(result.message) + '</div>';
+      return '<div class="kusto-error">' + escapeHtml(result.message) + '</div>' + traceHtml;
     }
     if (!result.rows.length) {
-      return '<p class="empty-hint">결과 0건.</p>';
+      return '<p class="empty-hint">결과 0건.</p>' + traceHtml;
     }
     var thead = "<tr>" + result.columns.map(function (c) { return "<th>" + escapeHtml(c) + "</th>"; }).join("") + "</tr>";
     var tbody = result.rows.map(function (row) {
       return "<tr>" + result.columns.map(function (c) { return "<td>" + escapeHtml(String(row[c])) + "</td>"; }).join("") + "</tr>";
     }).join("");
     var chartNote = result.chartHint ? '<p class="empty-hint">render timechart 감지됨 — 이 로컬 실행기는 실제 차트 대신 표로 표시합니다.</p>' : "";
-    return chartNote + '<div class="kusto-table-scroll"><table class="kusto-table">' + thead + tbody + "</table></div>";
+    return chartNote + '<div class="kusto-table-scroll"><table class="kusto-table">' + thead + tbody + "</table></div>" + traceHtml;
   }
 
   function initKustoLab() {
@@ -2386,8 +2445,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       '<div id="kustoResultArea"></div>';
 
     var input = document.getElementById("kustoQueryInput");
-    input.value = state.quiz["kusto-editor"] || "";
-    input.addEventListener("input", function () { state.quiz["kusto-editor"] = input.value; persist(); });
+    input.value = state.lab["kusto-editor"] || "";
+    input.addEventListener("input", function () { state.lab["kusto-editor"] = input.value; persist(); });
 
     var resultArea = document.getElementById("kustoResultArea");
     document.getElementById("kustoRunBtn").addEventListener("click", function () {
@@ -2397,7 +2456,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     KUSTO_PRACTICE_QUESTIONS.forEach(function (q) {
       body.querySelector('[data-fill="' + q.id + '"]').addEventListener("click", function () {
         input.value = q.answer;
-        state.quiz["kusto-editor"] = input.value;
+        state.lab["kusto-editor"] = input.value;
         persist();
       });
       body.querySelector('[data-reveal="' + q.id + '"]').addEventListener("click", function () {
@@ -2502,7 +2561,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     var overlapNote = document.getElementById("alertOverlapNote");
     var timelineArea = document.getElementById("alertTimelineArea");
 
-    var saved = state.quiz["alert-config"];
+    var saved = state.lab["alert-config"];
     if (saved) {
       try {
         var cfg = JSON.parse(saved);
@@ -2523,7 +2582,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         ? '<p class="alert-overlap-badge">⚠ 조회 기간(' + lookbackMin + '분)이 평가 빈도(' + evalFrequencyMin + '분)보다 길어 평가 구간이 서로 겹칩니다. 실제 Azure Monitor에서도 허용되는 설정입니다.</p>'
         : "";
       var config = { metricSeries: AM_METRIC_SERIES, thresholdOp: opEl.value, thresholdValue: thresholdValue, aggregation: aggregationEl.value, evalFrequencyMin: evalFrequencyMin, lookbackMin: lookbackMin };
-      state.quiz["alert-config"] = JSON.stringify({ aggregation: config.aggregation, thresholdOp: config.thresholdOp, thresholdValue: config.thresholdValue, evalFrequencyMin: config.evalFrequencyMin, lookbackMin: config.lookbackMin });
+      state.lab["alert-config"] = JSON.stringify({ aggregation: config.aggregation, thresholdOp: config.thresholdOp, thresholdValue: config.thresholdValue, evalFrequencyMin: config.evalFrequencyMin, lookbackMin: config.lookbackMin });
       persist();
       try {
         timelineArea.innerHTML = renderAlertTimeline(evaluateAlertRule(config), config.aggregation);

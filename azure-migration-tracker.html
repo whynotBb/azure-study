@@ -336,6 +336,22 @@
   .lab-input-row input { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; background: var(--bg); color: var(--text); }
   .lab-route-tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4); }
   .lab-route-tabs button.active { border-color: var(--accent-target); color: var(--accent-target); }
+  .kusto-editor { width: 100%; min-height: 120px; font-family: var(--font-mono); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg); color: var(--text); resize: vertical; }
+  .kusto-table-scroll { overflow-x: auto; margin-top: var(--sp-3); }
+  .kusto-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
+  .kusto-table th, .kusto-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; white-space: nowrap; }
+  .kusto-table th { background: var(--bg-alt, var(--bg)); font-weight: 700; }
+  .kusto-error { color: #b91c1c; font-size: var(--fs-sm); margin-top: var(--sp-2); }
+  .kusto-preset-grid { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+  .alert-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+  .alert-form-grid label { font-size: var(--fs-xs); color: var(--text-faint); display: flex; flex-direction: column; gap: 4px; }
+  .alert-form-grid input, .alert-form-grid select { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; background: var(--bg); color: var(--text); }
+  .alert-timeline { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp-3); }
+  .alert-point { font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px 8px; font-family: var(--font-mono); }
+  .alert-point.breached { border-color: #b91c1c; color: #b91c1c; }
+  .alert-point.fired { background: #b91c1c; color: #fff; }
+  .alert-point.resolved { background: #1a7f37; color: #fff; }
+  .alert-overlap-badge { font-size: var(--fs-xs); color: var(--text-dim); margin-bottom: var(--sp-2); }
 </style>
 
 <div class="app-shell">
@@ -531,6 +547,47 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       </div>
       <div id="labMigrationBody"></div>
     </section>
+
+    <section class="panel" id="panel-azuremonitor-ref" data-panel>
+      <div class="panel-head apim-ref-head">
+        <div class="htext">
+          <span class="eyebrow">14 · Reference</span>
+          <h1>Azure Monitor 레퍼런스</h1>
+          <p class="desc">Log Analytics 테이블 스키마, KQL(Kusto) 연산자, 알림 규칙, 액션 그룹, 워크북/대시보드, 진단 설정을 공식 문서 기준으로 정리했습니다. <strong>주의:</strong> 여기서 다루는 KQL은 앞선 "KQL 레퍼런스"의 Kusto Query Language와 같은 언어입니다(Kibana Query Language 아님) — Azure Monitor 데이터에 실제로 적용하는 예시로 재구성했습니다.</p>
+        </div>
+        <a class="top-doc-link" href="https://learn.microsoft.com/ko-kr/azure/azure-monitor/overview" target="_blank" rel="noopener">공식 문서 전체 보기 ↗</a>
+      </div>
+      <nav class="apim-toc" id="azuremonitorToc" aria-label="카테고리 바로가기"></nav>
+      <div id="azuremonitorRefBody"></div>
+    </section>
+
+    <section class="panel" id="panel-azuremonitor-quiz" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">15 · Active Recall</span>
+        <h1>Azure Monitor 퀴즈</h1>
+        <p class="desc">레퍼런스에 실린 항목을 설명만 보고 먼저 떠올려 본 뒤 정답과 비교하세요.</p>
+      </div>
+      <button class="btn goto-ref-btn" type="button" id="gotoAzureMonitorRef">← Azure Monitor 레퍼런스에서 전체 목록 먼저 보기</button>
+      <div id="azuremonitorQuizList"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-kusto" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">16 · Local Test Lab</span>
+        <h1>Kusto 실행기</h1>
+        <p class="desc">Kusto(Azure Monitor) 쿼리를 직접 작성해 로컬 가상 <code>ApiManagementGatewayLogs</code> 테이블에 실행합니다. 화이트리스트 연산자(where/project/summarize/top/sort/take/render)만 지원하며, <code>join</code> 등 그 외 연산자는 실행하지 않고 명확히 안내합니다.</p>
+      </div>
+      <div id="labKustoBody"></div>
+    </section>
+
+    <section class="panel" id="panel-lab-alert" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">17 · Local Test Lab</span>
+        <h1>알림 시뮬레이터</h1>
+        <p class="desc">샘플 응답 시간 메트릭 시계열에 임계값·평가 빈도·조회 기간(lookback)을 설정해 실제 Azure Monitor 메트릭 알림처럼 평가해 봅니다. 정적 임계값만 지원합니다.</p>
+      </div>
+      <div id="labAlertBody"></div>
+    </section>
   </div>
 </div>
 
@@ -553,7 +610,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, lab: true } };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, azuremonitor: true, lab: true } };
   }
   function loadState() {
     var raw = null;
@@ -610,6 +667,10 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         { id: "data-ref", label: "데이터·인프라 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
         { id: "data-quiz", label: "데이터·인프라 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
       ] },
+    { id: "azuremonitor", label: "Azure Monitor", icon: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', children: [
+        { id: "azuremonitor-ref", label: "Azure Monitor 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
+        { id: "azuremonitor-quiz", label: "Azure Monitor 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
+      ] },
     { id: "jira", label: "AIDD·Jira", icon: '<path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 13h6M9 17h4"/>' },
     { id: "lab", label: "로컬 테스트 랩", icon: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>', children: [
         { id: "lab-overview", label: "랩 개요", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18"/>' },
@@ -617,6 +678,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         { id: "lab-policy", label: "APIM Policy", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
         { id: "lab-logs", label: "로그 비교", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
         { id: "lab-migration", label: "마이그레이션", icon: '<path d="M4 12h16M14 6l6 6-6 6"/>' }
+        , { id: "lab-kusto", label: "Kusto 실행기", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
+        { id: "lab-alert", label: "알림 시뮬레이터", icon: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>' }
       ] }
   ];
 

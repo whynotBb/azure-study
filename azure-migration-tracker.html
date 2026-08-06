@@ -1469,9 +1469,93 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     ] }
   ];
 
+  var AZURE_MONITOR_REF = [
+    { cat: "Log Analytics 테이블 스키마", anchor: "am-tables", items: [
+      { name: "AppRequests 테이블", code: "AppRequests", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/reference/tables/apprequests",
+        easy: "Application Insights가 수집하는 HTTP 요청 로그입니다. 요청 이름(Name), 처리 시간(DurationMs), 성공 여부(Success), 결과 코드(ResultCode), 작업 ID(OperationId) 등을 담습니다.",
+        when: "특정 앱의 요청 성공률/응답 시간을 조회하고 싶을 때",
+        example: "AppRequests\n| where TimeGenerated > ago(1h)\n| where Success == false\n| project Name, ResultCode, DurationMs" },
+      { name: "AppExceptions 테이블", code: "AppExceptions", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/reference/tables/appexceptions",
+        easy: "앱에서 발생한 예외(Exception)를 기록합니다. 예외 타입(ExceptionType), 메시지(Message), 심각도(SeverityLevel), 관련 작업 ID(OperationId)를 담습니다.",
+        when: "에러 로그를 원인별로 집계하거나 특정 요청과 연결된 예외를 추적할 때",
+        example: 'AppExceptions\n| where TimeGenerated > ago(1h)\n| summarize count() by ExceptionType' },
+      { name: "AppDependencies 테이블", code: "AppDependencies", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/reference/tables/appdependencies",
+        easy: "앱이 호출한 외부 의존성(DB, 다른 API 등) 호출 결과를 기록합니다. 의존성 종류(DependencyType), 대상(Target), 처리 시간(DurationMs), 성공 여부(Success)를 담습니다.",
+        when: "백엔드/DB 호출 지연이 전체 응답 지연의 원인인지 확인할 때",
+        example: "AppDependencies\n| where Success == false\n| project DependencyType, Target, ResultCode, DurationMs" },
+      { name: "ApiManagementGatewayLogs 테이블", code: "ApiManagementGatewayLogs", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/reference/tables/apimanagementgatewaylogs",
+        easy: "APIM 게이트웨이를 통과한 모든 요청의 진단 로그입니다. API ID(ApiId), 응답 코드(ResponseCode), 요청 성공 여부(IsRequestSuccess), 총 처리 시간(TotalTime, ms) 등을 담습니다. 이 프로젝트의 Kusto 실행기가 사용하는 테이블입니다.",
+        when: "APIM을 통과하는 트래픽의 성공률/지연을 직접 조회하고 싶을 때",
+        example: "ApiManagementGatewayLogs\n| where IsRequestSuccess == false\n| top 100 by TimeGenerated desc" }
+    ] },
+    { cat: "KQL(Kusto) 연산자", anchor: "am-kusto-ops", items: [
+      { name: "where — 조건 필터링", code: "where", url: "https://learn.microsoft.com/ko-kr/kusto/query/where-operator",
+        easy: "조건에 맞는 행만 남깁니다. Kibana의 검색창 필터와 비슷한 역할이지만 문법은 완전히 다릅니다.",
+        when: "특정 조건(실패 요청, 특정 API 등)만 골라낼 때",
+        example: "ApiManagementGatewayLogs\n| where ResponseCode >= 500" },
+      { name: "summarize + bin() — 시간대별 집계", code: "summarize ... by bin()", url: "https://learn.microsoft.com/ko-kr/kusto/query/summarize-operator",
+        easy: "그룹별 집계(평균/합계/개수 등)를 구합니다. bin()과 함께 쓰면 시간을 일정 간격(예: 10분)으로 묶어 시계열 집계를 만들 수 있습니다.",
+        when: "시간대별 트래픽 추이나 평균 응답 시간 그래프를 만들 때",
+        example: "ApiManagementGatewayLogs\n| summarize avg(TotalTime) by bin(TimeGenerated, 10m)\n| render timechart" },
+      { name: "top N — 상위 N건", code: "top", url: "https://learn.microsoft.com/ko-kr/kusto/query/top-operator",
+        easy: "지정한 컬럼 기준으로 정렬해 상위 N건만 가져옵니다. sort by + take를 한 번에 하는 것과 비슷합니다.",
+        when: "가장 느린 요청 Top 10처럼 순위가 필요한 조회를 할 때",
+        example: "ApiManagementGatewayLogs\n| top 10 by TotalTime desc" },
+      { name: "join — 테이블 결합", code: "join", url: "https://learn.microsoft.com/ko-kr/kusto/query/join-operator",
+        easy: "OperationId 같은 공통 키로 두 테이블(예: AppRequests와 AppExceptions)을 연결합니다. 이 프로젝트의 로컬 Kusto 실행기는 join을 지원하지 않습니다 — 정확히 재현하기 어려워 화이트리스트에서 제외했습니다.",
+        when: "실패한 요청과 그 원인 예외를 함께 보고 싶을 때 (실제 Azure Monitor에서만 사용 가능, 이 프로젝트의 로컬 실행기에서는 미지원)",
+        example: 'AppRequests\n| where Success == false\n| join kind=inner (AppExceptions) on OperationId\n| project Name, ExceptionType' }
+    ] },
+    { cat: "알림 규칙(Alert Rules)", anchor: "am-alerts", items: [
+      { name: "알림 시그널 유형", code: "Signal type", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/alerts-types",
+        easy: "알림은 메트릭(Metric), 로그 검색(Log search), 활동 로그(Activity log), 스마트 감지(Smart detection), Prometheus 5가지 시그널 유형 중 하나로 만듭니다. 이 프로젝트의 알림 시뮬레이터는 메트릭 알림만 다룹니다.",
+        when: "어떤 종류의 알림을 만들지 처음 결정할 때",
+        example: "-- 메트릭 알림: CPU %, 응답 시간 등 수치형 시계열\n-- 로그 검색 알림: Kusto 쿼리 결과 건수 기준" },
+      { name: "평가 빈도 vs 조회 기간", code: "Check every / Lookback period", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/alerts-create-metric-alert-rule",
+        easy: "'평가 빈도(Check every)'는 조건을 확인하는 주기이고, '조회 기간(Lookback period, 집계 기간)'은 매번 확인할 때 얼마나 과거까지 데이터를 모아 집계할지입니다. 예: 1분마다 확인하되, 최근 5분치를 집계.",
+        when: "알림이 왜 예상보다 늦게(또는 빨리) 발동하는지 이해할 때",
+        example: "-- Check every: 1 minute\n-- Lookback period: 5 minutes\n-- → 매분 최근 5분 평균을 계산해 임계값과 비교" },
+      { name: "정적 임계값 vs 동적 임계값", code: "Static / Dynamic threshold", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/alerts-types",
+        easy: "정적 임계값은 사용자가 직접 숫자를 지정합니다. 동적 임계값은 머신러닝이 과거 패턴을 학습해 임계값을 자동으로 산출합니다(민감도 상/중/하 설정 가능). 이 프로젝트의 시뮬레이터는 정적 임계값만 지원합니다.",
+        when: "트래픽 패턴이 계절성/주기성을 띠어 고정 숫자로는 오탐이 많을 때 동적 임계값을 고려",
+        example: "-- 정적: TotalTime average > 500 ms\n-- 동적: 민감도 Medium, 과거 패턴 대비 이상치 자동 판정" }
+    ] },
+    { cat: "액션 그룹(Action Groups)", anchor: "am-action-groups", items: [
+      { name: "알림 액션(Notification)", code: "Notifications", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/action-groups",
+        easy: "사람에게 직접 알리는 채널입니다: Email, Email Azure Resource Manager Role, SMS, Azure 앱 푸시 알림(Azure app Push notifications), Voice(음성 전화).",
+        when: "담당자에게 즉시 알림이 필요할 때",
+        example: "-- Action Group 'oncall-notify': Email(team@contoso.com) + SMS(+82-10-...)" },
+      { name: "자동화 액션(Action)", code: "Actions", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/alerts/action-groups",
+        easy: "시스템이 자동으로 처리하게 하는 채널입니다: Automation Runbook, Event Hubs, Function(Azure Function), ITSM, Logic Apps, Secure Webhook, Webhook.",
+        when: "알림 발생 시 자동 재시작 스크립트를 트리거하거나 ITSM 티켓을 자동 생성하고 싶을 때",
+        example: "-- Action Group 'auto-remediate': Automation Runbook(Restart-AppService) + Webhook(https://ops.contoso.com/hook)" }
+    ] },
+    { cat: "워크북 vs 대시보드", anchor: "am-workbooks-dashboards", items: [
+      { name: "워크북(Workbooks)", code: "Workbooks", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/visualize/workbooks-overview",
+        easy: "텍스트·로그 쿼리(KQL)·메트릭·매개변수(parameter)를 결합한 인터랙티브 분석 캔버스입니다. 템플릿 갤러리로 공유할 수 있고, 여러 데이터 소스를 자유롭게 조합해 탐색하기 좋습니다.",
+        when: "장애 조사처럼 자유롭게 파고들며 분석하는 보고서를 만들 때",
+        example: "-- Workbook: 파라미터(리소스 선택) + KQL 쿼리 셀 + 메트릭 차트를 한 페이지에 결합" },
+      { name: "대시보드(Dashboards)", code: "Dashboards", url: "https://learn.microsoft.com/ko-kr/azure/azure-monitor/visualize/best-practices-visualize",
+        easy: "Azure 인프라 상태를 한 화면(single pane of glass)에 모아 보여주지만, 필터 기능은 없고 상단 시간 범위 선택만 가능해 워크북보다 기능이 제한적입니다. 워크북 시각화를 대시보드에 핀 고정(pin)해서 함께 쓸 수 있습니다.",
+        when: "운영팀이 상시 모니터하는 고정된 요약 화면이 필요할 때",
+        example: "-- Dashboard: 워크북에서 만든 timechart를 pin → 대시보드 타일로 고정 배치" }
+    ] },
+    { cat: "진단 설정(Diagnostic Settings)", anchor: "am-diagnostic-settings", items: [
+      { name: "API Management 진단 카테고리", code: "Microsoft.ApiManagement/service", url: "https://learn.microsoft.com/ko-kr/azure/api-management/monitor-api-management-reference",
+        easy: "API Management는 진단 로그 카테고리가 여러 개입니다: Gateway 로그(ApiManagementGatewayLogs), Developer Portal 사용 로그, WebSocket 연결 로그 등. 리소스 종류마다 노출되는 카테고리 구성이 다릅니다.",
+        when: "APIM에서 어떤 로그를 Log Analytics로 보낼지 진단 설정을 구성할 때",
+        example: "-- 진단 설정에서 'Logs related to ApiManagement Gateway' 카테고리를 활성화 → ApiManagementGatewayLogs 테이블에 적재" },
+      { name: "Key Vault 진단 카테고리", code: "Microsoft.KeyVault/vaults", url: "https://learn.microsoft.com/ko-kr/azure/key-vault/general/logging",
+        easy: "Key Vault는 진단 카테고리가 AuditEvent(감사 이벤트) 하나뿐입니다. API Management처럼 카테고리가 여러 개인 리소스와 대조하면, '리소스마다 진단 카테고리 구성이 다르다'는 점이 뚜렷하게 드러납니다.",
+        when: "새 리소스 종류를 모니터링에 추가할 때마다 그 리소스의 진단 카테고리 목록을 먼저 확인해야 하는 이유를 이해할 때",
+        example: "-- Key Vault 진단 설정: 'AuditEvent' 카테고리만 존재, 활성화하면 AZKVAuditLogs 테이블에 적재" }
+    ] }
+  ];
+
   renderRefPage("apimToc", "apimRefBody", APIM_POLICIES, POLICY_DOC_BASE);
   renderRefPage("kqlToc", "kqlRefBody", KQL_OPERATORS, KQL_DOC_BASE);
   renderRefPage("dataToc", "dataRefBody", DATA_INFRA, "");
+  renderRefPage("azuremonitorToc", "azuremonitorRefBody", AZURE_MONITOR_REF, "");
 
   var gotoApimRefBtn = document.getElementById("gotoApimRef");
   if (gotoApimRefBtn) gotoApimRefBtn.addEventListener("click", function () { switchTab("apim-ref"); });
@@ -1479,6 +1563,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   if (gotoKqlRefBtn) gotoKqlRefBtn.addEventListener("click", function () { switchTab("kql-ref"); });
   var gotoDataRefBtn = document.getElementById("gotoDataRef");
   if (gotoDataRefBtn) gotoDataRefBtn.addEventListener("click", function () { switchTab("data-ref"); });
+  var gotoAzureMonitorRefBtn = document.getElementById("gotoAzureMonitorRef");
+  if (gotoAzureMonitorRefBtn) gotoAzureMonitorRefBtn.addEventListener("click", function () { switchTab("azuremonitor-ref"); });
 
   /* ---------------- 레퍼런스 전체 항목 복습 퀴즈 (자동 생성) ---------------- */
   function buildFullQuiz(containerId, groups, storeKey, docBase) {
@@ -1523,6 +1609,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   buildFullQuiz("policyQuizList", APIM_POLICIES, "policy-full", POLICY_DOC_BASE);
   buildFullQuiz("kqlQuizList", KQL_OPERATORS, "kql-full", KQL_DOC_BASE);
   buildFullQuiz("dataQuizList", DATA_INFRA, "data-full", "");
+  buildFullQuiz("azuremonitorQuizList", AZURE_MONITOR_REF, "azuremonitor-full", "");
 
   /* ---------------- 로컬 테스트 랩: 샘플 데이터 ---------------- */
   var LAB_ROUTES = [

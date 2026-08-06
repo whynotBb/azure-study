@@ -2465,6 +2465,69 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return results;
   }
 
+  function renderAlertTimeline(results) {
+    if (!results.length) return '<p class="empty-hint">평가 결과가 없습니다. 조회 기간이 전체 구간보다 깁니다.</p>';
+    return '<div class="alert-timeline">' + results.map(function (r) {
+      var cls = "alert-point";
+      if (r.transition === "fired") cls += " fired";
+      else if (r.transition === "resolved") cls += " resolved";
+      else if (r.breached) cls += " breached";
+      var label = r.aggregatedValue === null ? r.note : Math.round(r.aggregatedValue) + "ms";
+      var badge = r.transition ? " · " + (r.transition === "fired" ? "발동" : "해제") : "";
+      return '<span class="' + cls + '" title="t=' + r.evalTime + "분">t+" + r.evalTime + "분: " + label + badge + "</span>";
+    }).join("") + "</div>";
+  }
+
+  function initAlertLab() {
+    var body = document.getElementById("labAlertBody");
+    body.innerHTML =
+      '<div class="alert-form-grid">' +
+      '<label>집계 방식<select id="alertAggregation"><option>Average</option><option>Maximum</option><option>Minimum</option><option>Total</option><option>Count</option></select></label>' +
+      '<label>임계값 연산자<select id="alertOp"><option value=">">&gt;</option><option value="<">&lt;</option><option value=">=">&gt;=</option><option value="<=">&lt;=</option></select></label>' +
+      '<label>임계값(ms)<input type="number" id="alertThreshold" value="300"></label>' +
+      '<label>평가 빈도(분)<input type="number" id="alertEvalFreq" value="1" min="1"></label>' +
+      '<label>조회 기간(분)<input type="number" id="alertLookback" value="5" min="1"></label>' +
+      "</div>" +
+      '<div class="quiz-actions"><button class="btn primary" type="button" id="alertRunBtn">평가 실행</button></div>' +
+      '<div id="alertOverlapNote"></div>' +
+      '<div id="alertTimelineArea"></div>';
+
+    var aggregationEl = document.getElementById("alertAggregation");
+    var opEl = document.getElementById("alertOp");
+    var thresholdEl = document.getElementById("alertThreshold");
+    var freqEl = document.getElementById("alertEvalFreq");
+    var lookbackEl = document.getElementById("alertLookback");
+    var overlapNote = document.getElementById("alertOverlapNote");
+    var timelineArea = document.getElementById("alertTimelineArea");
+
+    var saved = state.quiz["alert-config"];
+    if (saved) {
+      try {
+        var cfg = JSON.parse(saved);
+        aggregationEl.value = cfg.aggregation; opEl.value = cfg.thresholdOp;
+        thresholdEl.value = cfg.thresholdValue; freqEl.value = cfg.evalFrequencyMin; lookbackEl.value = cfg.lookbackMin;
+      } catch (e) { /* 저장값 손상 시 기본값 유지 */ }
+    }
+
+    document.getElementById("alertRunBtn").addEventListener("click", function () {
+      var evalFrequencyMin = Number(freqEl.value);
+      var lookbackMin = Number(lookbackEl.value);
+      var thresholdValue = Number(thresholdEl.value);
+      if (!evalFrequencyMin || evalFrequencyMin <= 0 || !lookbackMin || lookbackMin <= 0 || isNaN(thresholdValue)) {
+        timelineArea.innerHTML = '<p class="empty-hint">평가 빈도·조회 기간은 1 이상, 임계값은 숫자로 입력하세요.</p>';
+        return;
+      }
+      overlapNote.innerHTML = lookbackMin > evalFrequencyMin
+        ? '<p class="alert-overlap-badge">⚠ 조회 기간(' + lookbackMin + '분)이 평가 빈도(' + evalFrequencyMin + '분)보다 길어 평가 구간이 서로 겹칩니다. 실제 Azure Monitor에서도 허용되는 설정입니다.</p>'
+        : "";
+      var config = { metricSeries: AM_METRIC_SERIES, thresholdOp: opEl.value, thresholdValue: thresholdValue, aggregation: aggregationEl.value, evalFrequencyMin: evalFrequencyMin, lookbackMin: lookbackMin };
+      state.quiz["alert-config"] = JSON.stringify({ aggregation: config.aggregation, thresholdOp: config.thresholdOp, thresholdValue: config.thresholdValue, evalFrequencyMin: config.evalFrequencyMin, lookbackMin: config.lookbackMin });
+      persist();
+      timelineArea.innerHTML = renderAlertTimeline(evaluateAlertRule(config));
+    });
+  }
+  initAlertLab();
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

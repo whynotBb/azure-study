@@ -340,7 +340,7 @@
   .kusto-table-scroll { overflow-x: auto; margin-top: var(--sp-3); }
   .kusto-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
   .kusto-table th, .kusto-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; white-space: nowrap; }
-  .kusto-table th { background: var(--bg-alt, var(--bg)); font-weight: 700; }
+  .kusto-table th { background: var(--bg-inset); font-weight: 700; }
   .kusto-error { color: #b91c1c; font-size: var(--fs-sm); margin-top: var(--sp-2); }
   .kusto-preset-grid { display: grid; gap: var(--sp-3); margin-bottom: var(--sp-4); }
   .alert-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-4); }
@@ -719,7 +719,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       });
       group.appendChild(children);
 
-      if (state.navOpen[n.id]) group.classList.add("open");
+      if (state.navOpen[n.id] !== false) group.classList.add("open");
       railNav.appendChild(group);
     } else {
       var btn2 = document.createElement("button");
@@ -1545,10 +1545,10 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         easy: "API Management는 진단 로그 카테고리가 여러 개입니다: Gateway 로그(ApiManagementGatewayLogs), Developer Portal 사용 로그, WebSocket 연결 로그 등. 리소스 종류마다 노출되는 카테고리 구성이 다릅니다.",
         when: "APIM에서 어떤 로그를 Log Analytics로 보낼지 진단 설정을 구성할 때",
         example: "-- 진단 설정에서 'Logs related to ApiManagement Gateway' 카테고리를 활성화 → ApiManagementGatewayLogs 테이블에 적재" },
-      { name: "Key Vault 진단 카테고리", code: "Microsoft.KeyVault/vaults", url: "https://learn.microsoft.com/ko-kr/azure/key-vault/general/logging",
-        easy: "Key Vault는 진단 카테고리가 AuditEvent(감사 이벤트) 하나뿐입니다. API Management처럼 카테고리가 여러 개인 리소스와 대조하면, '리소스마다 진단 카테고리 구성이 다르다'는 점이 뚜렷하게 드러납니다.",
+      { name: "Key Vault 진단 카테고리", code: "Microsoft.KeyVault/vaults", url: "https://learn.microsoft.com/ko-kr/azure/key-vault/general/monitor-key-vault-reference",
+        easy: "Key Vault는 진단 카테고리가 2개입니다: 감사 이벤트(Audit Logs, 구 AuditEvent)와 Azure Policy 평가 세부 정보(Azure Policy Evaluation Details). API Management처럼 카테고리가 여러 개인 리소스와 대조하면, '리소스마다 진단 카테고리 구성이 다르다'는 점이 뚜렷하게 드러납니다.",
         when: "새 리소스 종류를 모니터링에 추가할 때마다 그 리소스의 진단 카테고리 목록을 먼저 확인해야 하는 이유를 이해할 때",
-        example: "-- Key Vault 진단 설정: 'AuditEvent' 카테고리만 존재, 활성화하면 AZKVAuditLogs 테이블에 적재" }
+        example: "-- Key Vault 진단 설정: 'Audit Logs' 카테고리 활성화 → AZKVAuditLogs 테이블에 적재, 'Azure Policy Evaluation Details' 카테고리 활성화 → AZKVPolicyEvaluationDetailsLogs 테이블에 적재" }
     ] }
   ];
 
@@ -2357,14 +2357,14 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
 
   function renderKustoResult(result) {
     if (result.error) {
-      return '<div class="kusto-error">' + result.message + '</div>';
+      return '<div class="kusto-error">' + escapeHtml(result.message) + '</div>';
     }
     if (!result.rows.length) {
       return '<p class="empty-hint">결과 0건.</p>';
     }
-    var thead = "<tr>" + result.columns.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr>";
+    var thead = "<tr>" + result.columns.map(function (c) { return "<th>" + escapeHtml(c) + "</th>"; }).join("") + "</tr>";
     var tbody = result.rows.map(function (row) {
-      return "<tr>" + result.columns.map(function (c) { return "<td>" + row[c] + "</td>"; }).join("") + "</tr>";
+      return "<tr>" + result.columns.map(function (c) { return "<td>" + escapeHtml(String(row[c])) + "</td>"; }).join("") + "</tr>";
     }).join("");
     var chartNote = result.chartHint ? '<p class="empty-hint">render timechart 감지됨 — 이 로컬 실행기는 실제 차트 대신 표로 표시합니다.</p>' : "";
     return chartNote + '<div class="kusto-table-scroll"><table class="kusto-table">' + thead + tbody + "</table></div>";
@@ -2381,11 +2381,12 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
 
     body.innerHTML =
       '<div class="kusto-preset-grid">' + presetHtml + '</div>' +
-      '<textarea class="kusto-editor" id="kustoQueryInput" placeholder="ApiManagementGatewayLogs\n| where ...">' + (state.quiz["kusto-editor"] || "") + '</textarea>' +
+      '<textarea class="kusto-editor" id="kustoQueryInput" placeholder="ApiManagementGatewayLogs\n| where ..."></textarea>' +
       '<div class="quiz-actions" style="margin-top:var(--sp-3);"><button class="btn primary" type="button" id="kustoRunBtn">실행</button></div>' +
       '<div id="kustoResultArea"></div>';
 
     var input = document.getElementById("kustoQueryInput");
+    input.value = state.quiz["kusto-editor"] || "";
     input.addEventListener("input", function () { state.quiz["kusto-editor"] = input.value; persist(); });
 
     var resultArea = document.getElementById("kustoResultArea");
@@ -2465,16 +2466,17 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return results;
   }
 
-  function renderAlertTimeline(results) {
+  function renderAlertTimeline(results, aggregation) {
     if (!results.length) return '<p class="empty-hint">평가 결과가 없습니다. 조회 기간이 전체 구간보다 깁니다.</p>';
+    var unit = aggregation === "Count" ? "건" : "ms";
     return '<div class="alert-timeline">' + results.map(function (r) {
       var cls = "alert-point";
       if (r.transition === "fired") cls += " fired";
       else if (r.transition === "resolved") cls += " resolved";
       else if (r.breached) cls += " breached";
-      var label = r.aggregatedValue === null ? r.note : Math.round(r.aggregatedValue) + "ms";
+      var label = r.aggregatedValue === null ? r.note : Math.round(r.aggregatedValue) + unit;
       var badge = r.transition ? " · " + (r.transition === "fired" ? "발동" : "해제") : "";
-      return '<span class="' + cls + '" title="t=' + r.evalTime + "분">t+" + r.evalTime + "분: " + label + badge + "</span>";
+      return '<span class="' + cls + '" title="t=' + r.evalTime + '분">t+' + r.evalTime + "분: " + label + badge + "</span>";
     }).join("") + "</div>";
   }
 
@@ -2513,7 +2515,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       var evalFrequencyMin = Number(freqEl.value);
       var lookbackMin = Number(lookbackEl.value);
       var thresholdValue = Number(thresholdEl.value);
-      if (!evalFrequencyMin || evalFrequencyMin <= 0 || !lookbackMin || lookbackMin <= 0 || isNaN(thresholdValue)) {
+      if (!evalFrequencyMin || evalFrequencyMin < 1 || !lookbackMin || lookbackMin < 1 || isNaN(thresholdValue)) {
         timelineArea.innerHTML = '<p class="empty-hint">평가 빈도·조회 기간은 1 이상, 임계값은 숫자로 입력하세요.</p>';
         return;
       }
@@ -2523,7 +2525,11 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       var config = { metricSeries: AM_METRIC_SERIES, thresholdOp: opEl.value, thresholdValue: thresholdValue, aggregation: aggregationEl.value, evalFrequencyMin: evalFrequencyMin, lookbackMin: lookbackMin };
       state.quiz["alert-config"] = JSON.stringify({ aggregation: config.aggregation, thresholdOp: config.thresholdOp, thresholdValue: config.thresholdValue, evalFrequencyMin: config.evalFrequencyMin, lookbackMin: config.lookbackMin });
       persist();
-      timelineArea.innerHTML = renderAlertTimeline(evaluateAlertRule(config));
+      try {
+        timelineArea.innerHTML = renderAlertTimeline(evaluateAlertRule(config), config.aggregation);
+      } catch (e) {
+        timelineArea.innerHTML = '<div class="kusto-error">' + escapeHtml(e.message) + '</div>';
+      }
     });
   }
   initAlertLab();

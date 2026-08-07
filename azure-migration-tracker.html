@@ -2618,6 +2618,39 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
   initAlertLab();
 
+  /* ---------------- Workbooks 구축: 상태 + 파라미터 치환 ---------------- */
+  var WORKBOOK_PARAM_OPTIONS = ["orders-api", "users-api", "legacy-api"];
+  var workbookCellSeq = 0;
+
+  function loadWorkbookState() {
+    var raw = state.lab["workbook-cells"];
+    if (raw) {
+      try { return JSON.parse(raw); } catch (e) { /* 저장값 손상 시 기본값 사용 */ }
+    }
+    return { missionId: "free", cells: [] };
+  }
+
+  function saveWorkbookState(wbState) {
+    state.lab["workbook-cells"] = JSON.stringify(wbState);
+    persist();
+  }
+
+  function substituteWorkbookParams(queryText, cells) {
+    var paramCells = cells.filter(function (c) { return c.type === "param"; });
+    var tokens = queryText.match(/\{[A-Za-z0-9_]+\}/g) || [];
+    var result = queryText;
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      var name = token.slice(1, -1);
+      var matches = paramCells.filter(function (c) { return c.name === name; });
+      if (!matches.length) {
+        return { error: true, message: "정의되지 않은 매개 변수 참조: " + token };
+      }
+      result = result.split(token).join(matches[0].value);
+    }
+    return { error: false, text: result };
+  }
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

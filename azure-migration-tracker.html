@@ -367,6 +367,13 @@
   .workbook-checklist-item.pass { color: #1a7f37; }
   .workbook-checklist-item.fail { color: #b91c1c; }
   .workbook-model-answer { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-top: var(--sp-3); }
+  .workbook-demo-bar { display: flex; justify-content: flex-end; margin-bottom: var(--sp-2); }
+  .workbook-demo-banner { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
+  .workbook-demo-progress { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-dim); white-space: nowrap; }
+  .workbook-demo-caption { flex: 1; font-size: var(--fs-sm); }
+  .workbook-demo-controls { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+  .demo-highlight { outline: 2px solid var(--accent-target); outline-offset: 2px; animation: demo-pulse 1s ease-in-out infinite; }
+  @keyframes demo-pulse { 0%, 100% { outline-color: var(--accent-target); } 50% { outline-color: transparent; } }
 </style>
 
 <div class="app-shell">
@@ -610,6 +617,10 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         <h1>Workbooks 구축</h1>
         <p class="desc">텍스트·파라미터·쿼리·차트 셀을 직접 조합해 Azure Monitor 워크북을 만들어 봅니다. 쿼리 셀은 Kusto 실행기와 동일한 엔진을 재사용하며, 실행기 탭의 쿼리를 그대로 가져올 수 있습니다.</p>
       </div>
+      <div class="workbook-demo-bar" id="workbookDemoBar">
+        <button class="btn primary" type="button" data-action="start-demo">▶ 데모 보기</button>
+      </div>
+      <div id="workbookDemoBanner"></div>
       <div id="labWorkbookBody"></div>
     </section>
   </div>

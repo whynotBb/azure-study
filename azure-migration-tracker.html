@@ -2719,7 +2719,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
           ]) };
       },
       modelAnswer: [
-        { type: "text", value: "응답시간 급증 구간을 조사하는 워크북입니다. API를 선택하면 아래 쿼리와 차트가 해당 데이터를 보여줍니다." },
+        { type: "text", value: "응답시간 급증 구간을 조사하는 워크북입니다. API를 선택하면 아래 쿼리가 해당 데이터를 보여줍니다. (차트 셀은 샘플 응답시간 시계열을 고정으로 표시합니다)" },
         { type: "param", name: "ApiIdParam", value: "orders-api" },
         { type: "query", value: 'ApiManagementGatewayLogs\n| where ApiId == "{ApiIdParam}"\n| top 10 by TotalTime desc' },
         { type: "chart" }
@@ -2846,6 +2846,11 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     var matches = wbState.cells.filter(function (c) { return c.id === cellId; });
     if (!matches.length) return;
     matches[0][field] = e.target.value;
+    if (field === "value" && matches[0].type === "query") {
+      // 쿼리 텍스트를 수정하면 이전 실행 결과는 더 이상 유효하지 않으므로 초기화한다
+      matches[0].lastRunOk = null;
+      delete workbookRunResults[cellId];
+    }
     saveWorkbookState(wbState);
   }
 
@@ -2870,7 +2875,9 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       var wbState = loadWorkbookState();
 
       if (action === "switch-mission") {
-        wbState.missionId = btn.getAttribute("data-mission-id");
+        var newMissionId = btn.getAttribute("data-mission-id");
+        if (newMissionId === wbState.missionId) return; // 이미 활성화된 탭이면 캔버스를 지우지 않는다
+        wbState.missionId = newMissionId;
         wbState.cells = [];
         workbookRunResults = {};
         saveWorkbookState(wbState);

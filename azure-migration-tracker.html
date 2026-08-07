@@ -368,7 +368,8 @@
   .workbook-checklist-item.fail { color: #b91c1c; }
   .workbook-model-answer { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-top: var(--sp-3); }
   .workbook-demo-bar { display: flex; justify-content: flex-end; margin-bottom: var(--sp-2); }
-  .workbook-demo-banner { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
+  #workbookDemoBanner { position: sticky; top: 0; z-index: 5; }
+  .workbook-demo-banner { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
   .workbook-demo-progress { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-dim); white-space: nowrap; }
   .workbook-demo-caption { flex: 1; font-size: var(--fs-sm); }
   .workbook-demo-controls { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
@@ -3114,6 +3115,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
 
   function nextWorkbookDemoStep() {
+    if (!workbookDemo.running || !workbookDemo.stepActionDone) return;
     clearTimeout(workbookDemo.timerId);
     runWorkbookDemoStep(workbookDemo.stepIndex + 1);
   }

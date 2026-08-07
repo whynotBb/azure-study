@@ -2850,6 +2850,13 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   }
 
   function initWorkbookLab() {
+    // 리로드 시 localStorage에서 복원되는 셀들과 id가 충돌하지 않도록,
+    // 저장된 셀의 최대 번호로 workbookCellSeq를 동기화한다.
+    var wbStateForSeq = loadWorkbookState();
+    wbStateForSeq.cells.forEach(function (c) {
+      var n = parseInt(String(c.id).slice(2), 10);
+      if (!isNaN(n) && n > workbookCellSeq) workbookCellSeq = n;
+    });
     renderWorkbookCanvas();
     var body = document.getElementById("labWorkbookBody");
 

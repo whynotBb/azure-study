@@ -2651,6 +2651,81 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return { error: false, text: result };
   }
 
+  /* ---------------- Workbooks 구축: 차트 렌더러 + 미션 정의 ---------------- */
+  function renderWorkbookChartSvg() {
+    var values = AM_METRIC_SERIES.map(function (p) { return p.value; });
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    var range = max - min || 1;
+    var points = AM_METRIC_SERIES.map(function (p) {
+      var x = (p.t / 59) * 600;
+      var y = 110 - ((p.value - min) / range) * 105;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    return '<svg class="workbook-chart-svg" viewBox="0 0 600 136" xmlns="http://www.w3.org/2000/svg">' +
+      '<polyline points="' + points + '" fill="none" stroke="currentColor" stroke-width="2"/>' +
+      '<text x="2" y="12" font-size="10" fill="currentColor">' + max + 'ms</text>' +
+      '<text x="2" y="108" font-size="10" fill="currentColor">' + min + 'ms</text>' +
+      '<text x="0" y="128" font-size="10" fill="currentColor">0분</text>' +
+      '<text x="560" y="128" font-size="10" fill="currentColor">59분</text>' +
+      '</svg>';
+  }
+
+  var WORKBOOK_MISSIONS = [
+    { id: "m1", title: "느린 요청 Top 5 리포트",
+      desc: "쿼리 셀 1개로 orders-api의 가장 느린 요청 5건을 조회하는 워크북을 만드세요.",
+      check: function (cells) {
+        var queries = cells.filter(function (c) { return c.type === "query"; });
+        var hasSuccess = queries.some(function (c) { return c.lastRunOk === true; });
+        return { pass: queries.length >= 1 && hasSuccess,
+          items: [
+            { label: "쿼리 셀이 1개 이상 있다", pass: queries.length >= 1 },
+            { label: "쿼리 셀 중 하나 이상 에러 없이 실행됐다", pass: hasSuccess }
+          ] };
+      },
+      modelAnswer: [
+        { type: "query", value: 'ApiManagementGatewayLogs\n| where ApiId == "orders-api"\n| top 5 by TotalTime desc' }
+      ] },
+    { id: "m2", title: "API별 필터링 리포트",
+      desc: "파라미터 셀 1개(이름: ApiIdParam)와 그 값을 참조하는 쿼리 셀 1개로, 선택한 API의 요청만 보여주는 워크북을 만드세요.",
+      check: function (cells) {
+        var params = cells.filter(function (c) { return c.type === "param"; });
+        var refQueries = cells.filter(function (c) {
+          if (c.type !== "query") return false;
+          return params.some(function (p) { return c.value.indexOf("{" + p.name + "}") !== -1; });
+        });
+        var hasSuccess = refQueries.some(function (c) { return c.lastRunOk === true; });
+        return { pass: params.length >= 1 && refQueries.length >= 1 && hasSuccess,
+          items: [
+            { label: "파라미터 셀이 1개 이상 있다", pass: params.length >= 1 },
+            { label: "쿼리 셀이 파라미터를 {파라미터명} 형태로 참조한다", pass: refQueries.length >= 1 },
+            { label: "그 쿼리가 에러 없이 실행됐다", pass: hasSuccess }
+          ] };
+      },
+      modelAnswer: [
+        { type: "param", name: "ApiIdParam", value: "orders-api" },
+        { type: "query", value: 'ApiManagementGatewayLogs\n| where ApiId == "{ApiIdParam}"\n| take 10' }
+      ] },
+    { id: "m3", title: "장애 조사용 종합 워크북",
+      desc: "텍스트 설명 1개, 파라미터 셀 1개, 그 파라미터를 참조하는 쿼리 셀 1개, 차트 셀 1개를 모두 갖춘 워크북을 만드세요.",
+      check: function (cells) {
+        var m2Result = WORKBOOK_MISSIONS[1].check(cells);
+        var texts = cells.filter(function (c) { return c.type === "text"; });
+        var charts = cells.filter(function (c) { return c.type === "chart"; });
+        return { pass: m2Result.pass && texts.length >= 1 && charts.length >= 1,
+          items: m2Result.items.concat([
+            { label: "텍스트 셀이 1개 이상 있다", pass: texts.length >= 1 },
+            { label: "차트 셀이 1개 이상 있다", pass: charts.length >= 1 }
+          ]) };
+      },
+      modelAnswer: [
+        { type: "text", value: "응답시간 급증 구간을 조사하는 워크북입니다. API를 선택하면 아래 쿼리와 차트가 해당 데이터를 보여줍니다." },
+        { type: "param", name: "ApiIdParam", value: "orders-api" },
+        { type: "query", value: 'ApiManagementGatewayLogs\n| where ApiId == "{ApiIdParam}"\n| top 10 by TotalTime desc' },
+        { type: "chart" }
+      ] }
+  ];
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

@@ -352,6 +352,21 @@
   .alert-point.fired { background: #b91c1c; color: #fff; }
   .alert-point.resolved { background: #1a7f37; color: #fff; }
   .alert-overlap-badge { font-size: var(--fs-xs); color: var(--text-dim); margin-bottom: var(--sp-2); }
+  .workbook-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+  .workbook-mission-tabs { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+  .workbook-mission-tabs button.active { border-color: var(--accent-target); color: var(--accent-target); }
+  .workbook-mission-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin: var(--sp-2) 0 var(--sp-4); background: var(--bg); }
+  .workbook-cell { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+  .workbook-cell-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-2); font-size: var(--fs-xs); color: var(--text-dim); }
+  .workbook-cell-head .cell-actions button { margin-left: 4px; }
+  .workbook-text-input, .workbook-query-input { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg); color: var(--text); font-family: inherit; }
+  .workbook-query-input { font-family: var(--font-mono); font-size: var(--fs-sm); min-height: 90px; resize: vertical; }
+  .workbook-param-select { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; background: var(--bg); color: var(--text); margin-left: var(--sp-2); }
+  .workbook-chart-svg { width: 100%; height: auto; color: var(--text); }
+  .workbook-checklist-item { font-size: var(--fs-sm); padding: 4px 0; }
+  .workbook-checklist-item.pass { color: #1a7f37; }
+  .workbook-checklist-item.fail { color: #b91c1c; }
+  .workbook-model-answer { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-top: var(--sp-3); }
 </style>
 
 <div class="app-shell">
@@ -588,6 +603,15 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       </div>
       <div id="labAlertBody"></div>
     </section>
+
+    <section class="panel" id="panel-lab-workbook" data-panel>
+      <div class="panel-head">
+        <span class="eyebrow">18 · Local Test Lab</span>
+        <h1>Workbooks 구축</h1>
+        <p class="desc">텍스트·파라미터·쿼리·차트 셀을 직접 조합해 Azure Monitor 워크북을 만들어 봅니다. 쿼리 셀은 Kusto 실행기와 동일한 엔진을 재사용하며, 실행기 탭의 쿼리를 그대로 가져올 수 있습니다.</p>
+      </div>
+      <div id="labWorkbookBody"></div>
+    </section>
   </div>
 </div>
 
@@ -679,7 +703,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         { id: "lab-logs", label: "로그 비교", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
         { id: "lab-migration", label: "마이그레이션", icon: '<path d="M4 12h16M14 6l6 6-6 6"/>' }
         , { id: "lab-kusto", label: "Kusto 실행기", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
-        { id: "lab-alert", label: "알림 시뮬레이터", icon: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>' }
+        { id: "lab-alert", label: "알림 시뮬레이터", icon: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>' },
+        { id: "lab-workbook", label: "Workbooks 구축", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9h10M7 13h6M7 17h4"/>' }
       ] }
   ];
 

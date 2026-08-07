@@ -2726,6 +2726,220 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       ] }
   ];
 
+  /* ---------------- Workbooks 구축: 캔버스 렌더링 ---------------- */
+  var WORKBOOK_CELL_LABELS = { text: "텍스트", param: "파라미터", query: "쿼리", chart: "차트" };
+  var workbookRunResults = {};
+
+  function renderWorkbookCellHtml(cell, idx, total) {
+    var head = '<div class="workbook-cell-head"><span>' + WORKBOOK_CELL_LABELS[cell.type] + '</span><span class="cell-actions">' +
+      '<button class="btn" type="button" data-action="up" data-cell-id="' + cell.id + '"' + (idx === 0 ? " disabled" : "") + '>↑</button>' +
+      '<button class="btn" type="button" data-action="down" data-cell-id="' + cell.id + '"' + (idx === total - 1 ? " disabled" : "") + '>↓</button>' +
+      '<button class="btn" type="button" data-action="delete" data-cell-id="' + cell.id + '">삭제</button>' +
+      '</span></div>';
+    var body = "";
+    if (cell.type === "text") {
+      body = '<textarea class="workbook-text-input" data-field="value" data-cell-id="' + cell.id + '" rows="2">' + escapeHtml(cell.value || "") + '</textarea>';
+    } else if (cell.type === "param") {
+      var opts = WORKBOOK_PARAM_OPTIONS.map(function (o) {
+        return '<option value="' + escapeHtml(o) + '"' + (o === cell.value ? " selected" : "") + '>' + escapeHtml(o) + '</option>';
+      }).join("");
+      body = '<label class="pwhen">파라미터명 <input type="text" class="workbook-text-input" style="display:inline-block;width:auto;" data-field="name" data-cell-id="' + cell.id + '" value="' + escapeHtml(cell.name || "") + '"></label>' +
+        '<select class="workbook-param-select" data-field="value" data-cell-id="' + cell.id + '">' + opts + '</select>';
+    } else if (cell.type === "query") {
+      var resultHtml = workbookRunResults[cell.id] || "";
+      body = '<textarea class="workbook-query-input" data-field="value" data-cell-id="' + cell.id + '" placeholder="ApiManagementGatewayLogs\n| where ...">' + escapeHtml(cell.value || "") + '</textarea>' +
+        '<div class="quiz-actions" style="margin-top:var(--sp-2);"><button class="btn primary" type="button" data-action="run" data-cell-id="' + cell.id + '">실행</button></div>' +
+        '<div id="workbookQueryResult-' + cell.id + '">' + resultHtml + '</div>';
+    } else if (cell.type === "chart") {
+      body = renderWorkbookChartSvg();
+    }
+    return '<div class="workbook-cell" data-cell="' + cell.id + '">' + head + body + '</div>';
+  }
+
+  function renderWorkbookMissionBar(wbState) {
+    var tabs = [{ id: "free", title: "자유 캔버스" }].concat(WORKBOOK_MISSIONS.map(function (m) { return { id: m.id, title: m.title }; }));
+    return '<div class="workbook-mission-tabs">' + tabs.map(function (t) {
+      return '<button class="btn' + (t.id === wbState.missionId ? " active" : "") + '" type="button" data-action="switch-mission" data-mission-id="' + t.id + '">' + escapeHtml(t.title) + '</button>';
+    }).join("") + '</div><p class="empty-hint">탭을 전환하면 현재 캔버스가 초기화됩니다.</p>';
+  }
+
+  function renderWorkbookMissionCard(mission) {
+    if (!mission) return "";
+    return '<div class="workbook-mission-card"><h3 style="font-size:var(--fs-md);margin-bottom:var(--sp-2);">' + escapeHtml(mission.title) + '</h3>' +
+      '<p class="quiz-scenario">' + escapeHtml(mission.desc) + '</p>' +
+      '<div class="quiz-actions"><button class="btn" type="button" data-action="check-mission">체크리스트 확인</button></div>' +
+      '<div id="workbookChecklistArea"></div></div>';
+  }
+
+  function renderWorkbookToolbar() {
+    return '<div class="workbook-toolbar">' +
+      '<button class="btn" type="button" data-action="add-cell" data-cell-type="text">+ 텍스트</button>' +
+      '<button class="btn" type="button" data-action="add-cell" data-cell-type="param">+ 파라미터</button>' +
+      '<button class="btn" type="button" data-action="add-cell" data-cell-type="query">+ 쿼리</button>' +
+      '<button class="btn" type="button" data-action="add-cell" data-cell-type="chart">+ 차트</button>' +
+      '<button class="btn" type="button" data-action="import-kusto">Kusto 실행기 탭 쿼리 가져오기</button>' +
+      '</div><div id="workbookImportNote"></div>';
+  }
+
+  function renderWorkbookCanvas() {
+    var wbState = loadWorkbookState();
+    var missionMatches = WORKBOOK_MISSIONS.filter(function (m) { return m.id === wbState.missionId; });
+    var mission = missionMatches.length ? missionMatches[0] : null;
+    var cellsHtml = wbState.cells.length
+      ? wbState.cells.map(function (cell, idx) { return renderWorkbookCellHtml(cell, idx, wbState.cells.length); }).join("")
+      : '<p class="empty-hint">아직 셀이 없습니다. 위 버튼으로 셀을 추가하세요.</p>';
+    document.getElementById("labWorkbookBody").innerHTML =
+      renderWorkbookMissionBar(wbState) +
+      renderWorkbookMissionCard(mission) +
+      renderWorkbookToolbar() +
+      '<div id="workbookCanvas">' + cellsHtml + '</div>';
+  }
+
+  function renderWorkbookChecklist(mission, result) {
+    var itemsHtml = result.items.map(function (it) {
+      return '<div class="workbook-checklist-item ' + (it.pass ? "pass" : "fail") + '">' + (it.pass ? "✅ " : "❌ ") + escapeHtml(it.label) + '</div>';
+    }).join("");
+    var passHtml = result.pass
+      ? '<div class="quiz-actions" style="margin-top:var(--sp-2);"><button class="btn primary" type="button" data-action="show-model-answer">모범 답안 구성 보기</button></div>'
+      : "";
+    document.getElementById("workbookChecklistArea").innerHTML = itemsHtml + passHtml + '<div id="workbookModelAnswerArea"></div>';
+  }
+
+  function renderWorkbookModelAnswer(mission) {
+    var html = mission.modelAnswer.map(function (cell) {
+      if (cell.type === "text") return '<div class="workbook-cell"><div class="workbook-cell-head"><span>텍스트</span></div><p>' + escapeHtml(cell.value) + '</p></div>';
+      if (cell.type === "param") return '<div class="workbook-cell"><div class="workbook-cell-head"><span>파라미터</span></div><p>이름: <code>' + escapeHtml(cell.name) + '</code>, 값: <code>' + escapeHtml(cell.value) + '</code></p></div>';
+      if (cell.type === "query") return '<div class="workbook-cell"><div class="workbook-cell-head"><span>쿼리</span></div><div class="code-block">' + escapeHtml(cell.value) + '</div></div>';
+      if (cell.type === "chart") return '<div class="workbook-cell"><div class="workbook-cell-head"><span>차트</span></div>' + renderWorkbookChartSvg() + '</div>';
+      return "";
+    }).join("");
+    var area = document.getElementById("workbookModelAnswerArea");
+    if (area) area.innerHTML = '<div class="workbook-model-answer">' + html + '</div>';
+  }
+
+  function runWorkbookQueryCell(cellId) {
+    var wbState = loadWorkbookState();
+    var matches = wbState.cells.filter(function (c) { return c.id === cellId; });
+    if (!matches.length) return;
+    var cell = matches[0];
+    var resultArea = document.getElementById("workbookQueryResult-" + cellId);
+    var sub = substituteWorkbookParams(cell.value || "", wbState.cells);
+    var html;
+    if (sub.error) {
+      cell.lastRunOk = false;
+      html = '<div class="kusto-error">' + escapeHtml(sub.message) + '</div>';
+    } else {
+      var result = runKustoQuery(sub.text);
+      cell.lastRunOk = !result.error;
+      html = renderKustoResult(result);
+    }
+    workbookRunResults[cellId] = html;
+    if (resultArea) resultArea.innerHTML = html;
+    saveWorkbookState(wbState);
+  }
+
+  function handleWorkbookFieldChange(e) {
+    var field = e.target.getAttribute("data-field");
+    if (!field) return;
+    var cellId = e.target.getAttribute("data-cell-id");
+    var wbState = loadWorkbookState();
+    var matches = wbState.cells.filter(function (c) { return c.id === cellId; });
+    if (!matches.length) return;
+    matches[0][field] = e.target.value;
+    saveWorkbookState(wbState);
+  }
+
+  function initWorkbookLab() {
+    renderWorkbookCanvas();
+    var body = document.getElementById("labWorkbookBody");
+
+    body.addEventListener("input", handleWorkbookFieldChange);
+    body.addEventListener("change", handleWorkbookFieldChange);
+
+    body.addEventListener("click", function (e) {
+      var btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var wbState = loadWorkbookState();
+
+      if (action === "switch-mission") {
+        wbState.missionId = btn.getAttribute("data-mission-id");
+        wbState.cells = [];
+        workbookRunResults = {};
+        saveWorkbookState(wbState);
+        renderWorkbookCanvas();
+        return;
+      }
+      if (action === "add-cell") {
+        var type = btn.getAttribute("data-cell-type");
+        workbookCellSeq++;
+        var cell = { id: "wc" + workbookCellSeq, type: type };
+        if (type === "text") cell.value = "";
+        if (type === "param") { cell.name = "ApiIdParam"; cell.value = WORKBOOK_PARAM_OPTIONS[0]; }
+        if (type === "query") { cell.value = ""; cell.lastRunOk = null; }
+        wbState.cells.push(cell);
+        saveWorkbookState(wbState);
+        renderWorkbookCanvas();
+        return;
+      }
+      if (action === "import-kusto") {
+        var kustoText = state.lab["kusto-editor"];
+        var note = document.getElementById("workbookImportNote");
+        if (!kustoText || !kustoText.trim()) {
+          if (note) note.innerHTML = '<p class="empty-hint">Kusto 실행기 탭에서 먼저 쿼리를 작성하세요.</p>';
+          return;
+        }
+        if (note) note.innerHTML = "";
+        workbookCellSeq++;
+        wbState.cells.push({ id: "wc" + workbookCellSeq, type: "query", value: kustoText, lastRunOk: null });
+        saveWorkbookState(wbState);
+        renderWorkbookCanvas();
+        return;
+      }
+      if (action === "check-mission") {
+        var missionForCheck = WORKBOOK_MISSIONS.filter(function (m) { return m.id === wbState.missionId; })[0];
+        if (!missionForCheck) return;
+        if (!wbState.cells.length) {
+          document.getElementById("workbookChecklistArea").innerHTML = '<p class="empty-hint">셀을 먼저 추가하세요.</p>';
+          return;
+        }
+        renderWorkbookChecklist(missionForCheck, missionForCheck.check(wbState.cells));
+        return;
+      }
+      if (action === "show-model-answer") {
+        var missionForAnswer = WORKBOOK_MISSIONS.filter(function (m) { return m.id === wbState.missionId; })[0];
+        if (missionForAnswer) renderWorkbookModelAnswer(missionForAnswer);
+        return;
+      }
+
+      var cellId = btn.getAttribute("data-cell-id");
+      if (!cellId) return;
+      if (action === "delete") {
+        wbState.cells = wbState.cells.filter(function (c) { return c.id !== cellId; });
+        delete workbookRunResults[cellId];
+        saveWorkbookState(wbState);
+        renderWorkbookCanvas();
+        return;
+      }
+      if (action === "up" || action === "down") {
+        var idx = -1;
+        for (var i = 0; i < wbState.cells.length; i++) { if (wbState.cells[i].id === cellId) { idx = i; break; } }
+        var swapWith = action === "up" ? idx - 1 : idx + 1;
+        if (idx === -1 || swapWith < 0 || swapWith >= wbState.cells.length) return;
+        var tmp = wbState.cells[idx];
+        wbState.cells[idx] = wbState.cells[swapWith];
+        wbState.cells[swapWith] = tmp;
+        saveWorkbookState(wbState);
+        renderWorkbookCanvas();
+        return;
+      }
+      if (action === "run") {
+        runWorkbookQueryCell(cellId);
+      }
+    });
+  }
+  initWorkbookLab();
+
   /* ---------------- jira draft ---------------- */
   var jiraTa = document.getElementById("jiraDraft");
   var jiraSaved = document.getElementById("jiraSaved");

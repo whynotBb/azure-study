@@ -599,7 +599,6 @@
     var card = e.target.closest("[data-example-id]");
     if (card) {
       var id = card.getAttribute("data-example-id");
-      var ex = KQL_EXAMPLES.filter(function (x) { return x.id === id; })[0];
       var btn = e.target.closest("button");
       var action = btn && btn.getAttribute("data-action");
       if (action === "run") {

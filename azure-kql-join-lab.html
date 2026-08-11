@@ -42,6 +42,8 @@
   .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
   .storage-banner { display: none; background: #b45309; color: #fff; padding: var(--sp-2) var(--sp-4); font-size: var(--fs-xs); }
   .storage-banner.show { display: block; }
+  .empty-hint { font-size: var(--fs-xs); color: var(--text-dim); }
+  .workbook-model-answer { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-top: var(--sp-3); }
 </style>
 </head>
 <body>
@@ -147,6 +149,7 @@
   }
 
   function kustoApplyWhere(rows, clause) {
+    if (/\bor\b/i.test(clause)) throw new Error("이 시뮬레이터는 where 절에서 'or'를 지원하지 않습니다(and만 지원). 여러 조건은 개별 where 스테이지로 나눠보세요.");
     var conditions = clause.split(/\s+and\s+/i).map(function (c) {
       var unary = c.match(/^(isnull|isnotempty)\((\w+)\)$/);
       if (unary) return { fn: unary[1], col: unary[2] };
@@ -311,7 +314,7 @@
 
     for (var i = 0; i < stages.length; i++) {
       var stage = stages[i];
-      var opMatch = stage.match(/^(\w+)\s*([\s\S]*)$/);
+      var opMatch = stage.match(/^([\w-]+)\s*([\s\S]*)$/);
       var op = opMatch ? opMatch[1] : "";
       var clause = opMatch ? opMatch[2] : "";
       if (op === "render") {
@@ -337,6 +340,30 @@
         var badCols = refs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
         if (badCols.length) {
           return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+        }
+      }
+      if (currentColumns && op === "project") {
+        var projRefs = clause.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+        var badProjCols = projRefs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
+        if (badProjCols.length) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badProjCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+        }
+      }
+      if (currentColumns && op === "summarize") {
+        var sumMatch = clause.match(/^(.+?)\s+by\s+(.+)$/);
+        if (sumMatch) {
+          var sumRefs = [];
+          sumMatch[1].split(",").forEach(function (part) {
+            var spec = part.trim().match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?$/);
+            if (spec && spec[2]) sumRefs.push(spec[2]);
+          });
+          var sumByClause = sumMatch[2].trim();
+          var sumByBin = sumByClause.match(/^bin\(\s*(\w+)\s*,\s*(\d+)(m|h|s)\s*\)$/);
+          sumRefs.push(sumByBin ? sumByBin[1] : sumByClause);
+          var badSumCols = sumRefs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
+          if (badSumCols.length) {
+            return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badSumCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+          }
         }
       }
       try {
@@ -366,8 +393,9 @@
     if (!result.rows.length) return '<p class="empty-hint">결과 0건 — 차트를 그릴 데이터가 없습니다.</p>';
     var columns = result.columns;
     var categoryCol = columns[0];
-    var numericCols = opts.seriesCols || pickNumericCols(columns, result.rows);
+    var numericCols = (opts.seriesCols || pickNumericCols(columns, result.rows)).filter(function (c) { return columns.indexOf(c) !== -1; });
     if (!numericCols.length) return '<p class="empty-hint">차트로 표현할 숫자 컬럼이 없습니다.</p>';
+    if (!result.chartType) return "";
     var rows = result.rows;
     var w = 640, h = 280, pad = 40;
 
@@ -467,7 +495,7 @@
       answer: "ApiManagementGatewayLogs\n| join kind=leftouter (AppRequests) on OperationId\n| where isnull(Name)" },
     { id: "B5", group: "join2", tables: ["AppDependencies", "AppRequests"], prompt: "APIM 게이트웨이를 거치지 않고 직접 실행된 백그라운드 DB 호출(어느 백엔드 요청과도 매칭되지 않는 행)을 rightouter join으로 찾으세요.",
       answer: "AppRequests\n| join kind=rightouter (AppDependencies) on OperationId\n| where isnull(Name)" },
-    { id: "C1", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 테이블을 모두 OperationId로 join해 API별 게이트웨이(TotalTime)/백엔드(DurationMs)/DB(DurationMs2) 평균 소요시간을 함께 보여주는 표를 만드세요.",
+    { id: "C1", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 테이블을 모두 OperationId로 join해 API별 게이트웨이(TotalTime)/백엔드(DurationMs)/DB(DurationMs1) 평균 소요시간을 함께 보여주는 표를 만드세요.",
       answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| summarize avg(TotalTime), avg(DurationMs), avg(DurationMs1) by ApiId",
       seriesCols: ["avg_TotalTime", "avg_DurationMs"] },
     { id: "C2", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 계층(게이트웨이/백엔드/DB) 모두 성공한 완전 성공 요청만 남겨 API별 건수를 파이차트로 그리세요.",
@@ -562,7 +590,7 @@
     { title: "3. 집계와 시간 버킷: summarize by bin()", body: "`summarize`는 그룹별 집계를, `bin(컬럼, 간격)`은 시간을 일정 간격으로 묶습니다. 두 개를 합치면 시계열 차트의 재료가 됩니다.",
       query: "ApiManagementGatewayLogs\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
     { title: "4. 순위와 정렬: top / sort by", body: "`top N by 컬럼`은 상위 N건을, `sort by 컬럼 desc`는 전체 정렬을 반환합니다. 느린 요청을 찾을 때 자주 씁니다.",
-      query: "ApiManagementGatewayLogs\n| top 5 by TotalTime desc\n| render barchart" },
+      query: "ApiManagementGatewayLogs\n| project ApiId, TotalTime\n| top 5 by TotalTime desc\n| render barchart" },
     { title: "5. join 문법: 종류와 on 절", body: "`join kind=inner (오른쪽테이블) on 컬럼`은 두 테이블에서 컬럼 값이 같은 행끼리 합칩니다. 컬럼명이 다르면 `on $left.A == $right.B` 형태를 씁니다. kind는 4가지: inner(양쪽 다 있는 행만), leftouter(왼쪽 전부 + 매칭된 오른쪽), rightouter(오른쪽 전부 + 매칭된 왼쪽), fullouter(양쪽 전부, 매칭 안 된 쪽은 null). 아래는 게이트웨이와 백엔드를 OperationId로 합치는 예시입니다.",
       query: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| project ApiId, TotalTime, DurationMs" },
     { title: "6. 실전 조합: 3테이블 대시보드", body: "join을 두 번 이어 붙이면 3개 테이블을 모두 조합할 수 있습니다. 이렇게 만든 결과를 여러 차트로 나눠 한 화면에 배치하는 것이 Azure Workbook 대시보드의 기본 패턴입니다 — 워크북은 이런 쿼리 결과를 텍스트/파라미터 셀과 함께 하나의 문서로 묶어 보여주는 도구입니다.",
@@ -606,7 +634,7 @@
         state.answers[id] = state.answers[id] || {};
         state.answers[id].userQuery = editor.value;
         state.answers[id].lastResult = runKustoQuery2(editor.value);
-        state.answers[id].ranOnce = true;
+        state.answers[id].ranOnce = !state.answers[id].lastResult.error;
         persist();
         render();
       } else if (action === "reveal") {

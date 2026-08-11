@@ -426,6 +426,91 @@
     return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + bars + '</svg>';
   }
 
+  var KQL_EXAMPLES = [
+    { id: "A1", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "게이트웨이 로그에서 5분 단위로 요청 수 추이를 타임차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { id: "A2", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "API(ApiId)별 요청 수를 세로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by ApiId\n| render columnchart" },
+    { id: "A3", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "응답코드(ResponseCode)별 건수 분포를 파이차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by ResponseCode\n| render piechart" },
+    { id: "A4", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "처리시간(TotalTime)이 가장 긴 5건을 ApiId/TotalTime만 남겨 가로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| project ApiId, TotalTime\n| top 5 by TotalTime desc\n| render barchart" },
+    { id: "A5", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "API별 평균 처리시간(TotalTime)을 세로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize avg(TotalTime) by ApiId\n| render columnchart" },
+    { id: "A6", group: "single", tables: ["AppRequests"], prompt: "백엔드 요청의 성공/실패(Success) 비율을 파이차트로 그리세요.",
+      answer: "AppRequests\n| summarize count() by Success\n| render piechart" },
+    { id: "A7", group: "single", tables: ["AppRequests"], prompt: "백엔드 서비스(AppRoleName)별 평균 응답시간(DurationMs)을 세로 막대 차트로 그리세요.",
+      answer: "AppRequests\n| summarize avg(DurationMs) by AppRoleName\n| render columnchart" },
+    { id: "A8", group: "single", tables: ["AppDependencies"], prompt: "의존성 타입(DependencyType)별 호출 건수를 파이차트로 그리세요.",
+      answer: "AppDependencies\n| summarize count() by DependencyType\n| render piechart" },
+    { id: "A9", group: "single", tables: ["AppDependencies"], prompt: "Target별 평균 소요시간(DurationMs)을 느린 순으로 가로 막대 차트로 그리세요.",
+      answer: "AppDependencies\n| summarize avg(DurationMs) by Target\n| sort by avg_DurationMs desc\n| render barchart" },
+    { id: "A10", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "실패한(IsRequestSuccess=false) 요청만 5분 단위 추이로 타임차트를 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| where IsRequestSuccess == false\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { id: "B1", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "게이트웨이는 성공(IsRequestSuccess=true)으로 기록했지만 백엔드는 실패(Success=false)로 기록한 요청을 찾으세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| where IsRequestSuccess == true and Success == false" },
+    { id: "B2", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "API별 게이트웨이 오버헤드(TotalTime 평균 − DurationMs 평균 개념)를 확인할 수 있도록, join 후 ApiId/TotalTime/DurationMs만 남겨 상위 5건을 TotalTime 기준으로 보여주세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| project ApiId, TotalTime, DurationMs\n| top 5 by TotalTime desc" },
+    { id: "B3", group: "join2", tables: ["AppRequests", "AppDependencies"], prompt: "백엔드 요청과 DB 호출을 leftouter join으로 연결해(캐시 히트로 DB 미호출인 행도 포함) Name/DurationMs/DurationMs1(DB 소요시간)을 확인하세요.",
+      answer: "AppRequests\n| join kind=leftouter (AppDependencies) on OperationId\n| project Name, DurationMs, DurationMs1" },
+    { id: "B4", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "게이트웨이에는 기록됐지만 백엔드에는 도달하지 못한(차단된) 요청만 leftouter join + isnull로 찾으세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=leftouter (AppRequests) on OperationId\n| where isnull(Name)" },
+    { id: "B5", group: "join2", tables: ["AppDependencies", "AppRequests"], prompt: "APIM 게이트웨이를 거치지 않고 직접 실행된 백그라운드 DB 호출(어느 백엔드 요청과도 매칭되지 않는 행)을 rightouter join으로 찾으세요.",
+      answer: "AppRequests\n| join kind=rightouter (AppDependencies) on OperationId\n| where isnull(Name)" },
+    { id: "C1", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 테이블을 모두 OperationId로 join해 API별 게이트웨이(TotalTime)/백엔드(DurationMs)/DB(DurationMs2) 평균 소요시간을 함께 보여주는 표를 만드세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| summarize avg(TotalTime), avg(DurationMs), avg(DurationMs1) by ApiId",
+      seriesCols: ["avg_TotalTime", "avg_DurationMs"] },
+    { id: "C2", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 계층(게이트웨이/백엔드/DB) 모두 성공한 완전 성공 요청만 남겨 API별 건수를 파이차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| where IsRequestSuccess == true and Success == true and Success1 == true\n| summarize count() by ApiId\n| render piechart" }
+  ];
+
+  function renderExampleCard(ex) {
+    var saved = state.answers[ex.id] || {};
+    var revealed = !!saved.revealed;
+    var ranOnce = !!saved.ranOnce;
+    var badges = ex.tables.map(function (t) { return "<span>" + escapeHtml(t) + "</span>"; }).join("");
+    var resultHtml = "";
+    if (saved.lastResult) {
+      resultHtml = saved.lastResult.error
+        ? '<div class="kql-error">' + escapeHtml(saved.lastResult.message) + '</div>'
+        : renderResultTable(saved.lastResult) + renderChart(saved.lastResult, { seriesCols: ex.seriesCols });
+    }
+    var answerHtml = "";
+    if (revealed) {
+      var answerResult = runKustoQuery2(ex.answer);
+      answerHtml = '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
+        renderResultTable(answerResult) + renderChart(answerResult, { seriesCols: ex.seriesCols }) + '</div>';
+    }
+    return '<div class="example-card" data-example-id="' + ex.id + '">' +
+      '<div class="example-badges">' + badges + '</div>' +
+      '<p><strong>' + ex.id + '.</strong> ' + escapeHtml(ex.prompt) + '</p>' +
+      '<textarea class="kql-editor" data-role="editor">' + escapeHtml(saved.userQuery || "") + '</textarea>' +
+      '<div style="margin-top:8px;display:flex;gap:8px;">' +
+      '<button class="btn primary" data-action="run">내 쿼리 실행</button>' +
+      '<button class="btn" data-action="reveal"' + (ranOnce ? "" : " disabled") + '>' + (revealed ? "정답 접기" : "정답 보기") + '</button>' +
+      '</div>' + resultHtml + answerHtml + '</div>';
+  }
+
+  function renderResultTable(result) {
+    if (result.error || !result.rows.length) return "";
+    var cols = result.columns;
+    var head = cols.map(function (c) { return "<th>" + escapeHtml(c) + "</th>"; }).join("");
+    var body = result.rows.map(function (r) {
+      return "<tr>" + cols.map(function (c) { return "<td>" + escapeHtml(r[c]) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    return '<table class="kql-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
+  function renderExamplesTab() {
+    var groupLabels = { single: "단일 테이블 예제", join2: "2테이블 join 예제", join3: "3테이블 조합 예제" };
+    var html = "";
+    ["single", "join2", "join3"].forEach(function (g) {
+      html += "<h2>" + groupLabels[g] + "</h2>";
+      html += KQL_EXAMPLES.filter(function (ex) { return ex.group === g; }).map(renderExampleCard).join("");
+    });
+    return html;
+  }
+
   function storageAvailable() {
     try { var k = "__t"; localStorage.setItem(k, "1"); localStorage.removeItem(k); return true; } catch (e) { return false; }
   }
@@ -456,11 +541,56 @@
     var btn = e.target.closest("button[data-tab]");
     if (btn) setActiveTab(btn.getAttribute("data-tab"));
   });
+  var KQL_TUTORIAL_STEPS = [];
+  function renderTutorialTab() { return "<p>튜토리얼 준비 중(Task 5에서 구현)</p>"; }
+
   function render() {
     var app = document.getElementById("app");
-    if (state.activeTab === "tutorial") app.innerHTML = "<p>튜토리얼 준비 중(Task 5에서 구현)</p>";
-    else app.innerHTML = "<p>예제 준비 중(Task 4에서 구현)</p>";
+    if (state.activeTab === "tutorial") app.innerHTML = renderTutorialTab();
+    else app.innerHTML = renderExamplesTab();
   }
+
+  document.getElementById("app").addEventListener("click", function (e) {
+    var card = e.target.closest("[data-example-id]");
+    if (card) {
+      var id = card.getAttribute("data-example-id");
+      var ex = KQL_EXAMPLES.filter(function (x) { return x.id === id; })[0];
+      var btn = e.target.closest("button");
+      var action = btn && btn.getAttribute("data-action");
+      if (action === "run") {
+        var editor = card.querySelector("[data-role='editor']");
+        state.answers[id] = state.answers[id] || {};
+        state.answers[id].userQuery = editor.value;
+        state.answers[id].lastResult = runKustoQuery2(editor.value);
+        state.answers[id].ranOnce = true;
+        persist();
+        render();
+      } else if (action === "reveal") {
+        state.answers[id] = state.answers[id] || {};
+        state.answers[id].revealed = !state.answers[id].revealed;
+        persist();
+        render();
+      }
+      return;
+    }
+    var tstep = e.target.closest("[data-tutorial-action]");
+    if (tstep && KQL_TUTORIAL_STEPS.length) {
+      var dir = tstep.getAttribute("data-tutorial-action");
+      state.tutorialStep = Math.max(0, Math.min(KQL_TUTORIAL_STEPS.length - 1, (state.tutorialStep || 0) + (dir === "next" ? 1 : -1)));
+      persist();
+      render();
+    }
+  });
+
+  document.getElementById("app").addEventListener("input", function (e) {
+    var card = e.target.closest("[data-example-id]");
+    if (card && e.target.getAttribute("data-role") === "editor") {
+      var id = card.getAttribute("data-example-id");
+      state.answers[id] = state.answers[id] || {};
+      state.answers[id].userQuery = e.target.value;
+      persist();
+    }
+  });
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === state.activeTab); });
     render();

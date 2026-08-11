@@ -79,7 +79,8 @@
     { TimeGenerated: "2026-08-11T09:09:25Z", OperationId: "OP-1017", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 113, CallerIpAddress: "203.0.113.12" },
     { TimeGenerated: "2026-08-11T09:10:02Z", OperationId: "OP-1018", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 410, CallerIpAddress: "203.0.113.30" },
     { TimeGenerated: "2026-08-11T09:10:47Z", OperationId: "OP-1019", ApiId: "users-api", Method: "GET", Url: "/users/7", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 91, CallerIpAddress: "203.0.113.21" },
-    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 85, CallerIpAddress: "203.0.113.10" }
+    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 85, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-11T09:11:50Z", OperationId: "OP-1021", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 90, CallerIpAddress: "203.0.113.11" }
   ];
 
   var APP_REQUESTS = [
@@ -97,7 +98,8 @@
     { TimeGenerated: "2026-08-11T09:09:25Z", OperationId: "OP-1017", Name: "POST Orders/Create", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 100, AppRoleName: "orders-api-backend" },
     { TimeGenerated: "2026-08-11T09:10:02Z", OperationId: "OP-1018", Name: "GET Legacy/Report", Url: "/legacy/report", Success: true, ResultCode: "200", DurationMs: 380, AppRoleName: "legacy-api-backend" },
     { TimeGenerated: "2026-08-11T09:10:47Z", OperationId: "OP-1019", Name: "GET Users/GetById", Url: "/users/7", Success: true, ResultCode: "200", DurationMs: 35, AppRoleName: "users-api-backend" },
-    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 72, AppRoleName: "orders-api-backend" }
+    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 72, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:11:51Z", OperationId: "OP-1021", Name: "GET Orders/List", Url: "/orders", Success: false, ResultCode: "200", DurationMs: 65, AppRoleName: "orders-api-backend" }
   ];
 
   var APP_DEPENDENCIES = [
@@ -177,9 +179,14 @@
   }
 
   function kustoApplySummarize(rows, clause) {
-    var m = clause.match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?\s+by\s+(.+)$/);
+    var m = clause.match(/^(.+?)\s+by\s+(.+)$/);
     if (!m) throw new Error("summarize 문법을 해석할 수 없습니다: " + clause);
-    var aggToken = m[1], aggCol = m[2], byClause = m[3].trim();
+    var aggSpecs = m[1].split(",").map(function (part) {
+      var spec = part.trim().match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?$/);
+      if (!spec) throw new Error("summarize 문법을 해석할 수 없습니다: " + clause);
+      return { aggToken: spec[1], aggCol: spec[2] };
+    });
+    var byClause = m[2].trim();
     var byBin = byClause.match(/^bin\(\s*(\w+)\s*,\s*(\d+)(m|h|s)\s*\)$/);
     var groups = {};
     rows.forEach(function (row) {
@@ -189,15 +196,18 @@
     });
     return Object.keys(groups).sort().map(function (key) {
       var group = groups[key];
-      var value;
-      if (aggToken === "count()") value = group.length;
-      else if (aggToken === "avg") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0) / group.length;
-      else if (aggToken === "sum") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0);
-      else if (aggToken === "max") value = Math.max.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
-      else if (aggToken === "min") value = Math.min.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
       var out = {};
       out[byBin ? byBin[1] : byClause] = key;
-      out[aggToken === "count()" ? "count_" : aggToken + "_" + aggCol] = value;
+      aggSpecs.forEach(function (spec) {
+        var aggToken = spec.aggToken, aggCol = spec.aggCol;
+        var value;
+        if (aggToken === "count()") value = group.length;
+        else if (aggToken === "avg") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0) / group.length;
+        else if (aggToken === "sum") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0);
+        else if (aggToken === "max") value = Math.max.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+        else if (aggToken === "min") value = Math.min.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+        out[aggToken === "count()" ? "count_" : aggToken + "_" + aggCol] = value;
+      });
       return out;
     });
   }
@@ -478,8 +488,11 @@
     var answerHtml = "";
     if (revealed) {
       var answerResult = runKustoQuery2(ex.answer);
-      answerHtml = '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
-        renderResultTable(answerResult) + renderChart(answerResult, { seriesCols: ex.seriesCols }) + '</div>';
+      answerHtml = answerResult.error
+        ? '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
+          '<div class="kql-error">' + escapeHtml(answerResult.message) + '</div></div>'
+        : '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
+          renderResultTable(answerResult) + renderChart(answerResult, { seriesCols: ex.seriesCols }) + '</div>';
     }
     return '<div class="example-card" data-example-id="' + ex.id + '">' +
       '<div class="example-badges">' + badges + '</div>' +

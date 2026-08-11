@@ -554,8 +554,40 @@
     var btn = e.target.closest("button[data-tab]");
     if (btn) setActiveTab(btn.getAttribute("data-tab"));
   });
-  var KQL_TUTORIAL_STEPS = [];
-  function renderTutorialTab() { return "<p>튜토리얼 준비 중(Task 5에서 구현)</p>"; }
+  var KQL_TUTORIAL_STEPS = [
+    { title: "1. 왜 테이블이 3개인가", body: "게이트웨이(ApiManagementGatewayLogs) → 백엔드(AppRequests) → DB(AppDependencies) 순서로 요청이 흘러갑니다. 게이트웨이 21건 중 5건(OP-1003/1004/1007/1011/1012)은 인증/속도제한으로 차단되어 백엔드에 도달하지 못하고, 나머지 16건만 백엔드에 도달합니다. 이 16건 중 2건은 캐시 히트라 DB를 호출하지 않고, 1건(OP-1021)은 백엔드 자체 로직에서 실패로 기록되어 역시 DB를 호출하지 않아 13건만 DB를 호출합니다. 여기에 APIM 게이트웨이를 거치지 않은 백그라운드 작업 2건(OP-BG01/OP-BG02)이 DB 테이블에 별도로 추가되어, 세 테이블의 행 수는 21 → 16 → 15(13건 상관 + 2건 별도 백그라운드 작업)로 자연스럽게 달라집니다. 아래 쿼리로 게이트웨이 응답코드 분포를 먼저 확인해 보세요.",
+      query: "ApiManagementGatewayLogs\n| summarize count() by ResponseCode\n| render piechart" },
+    { title: "2. 단일 테이블 기초: where / project", body: "`where`로 행을 거르고 `project`로 필요한 컬럼만 남깁니다. 아래는 orders-api의 요청만 골라 URL과 처리시간만 남기는 예시입니다.",
+      query: "ApiManagementGatewayLogs\n| where ApiId == \"orders-api\"\n| project Url, TotalTime" },
+    { title: "3. 집계와 시간 버킷: summarize by bin()", body: "`summarize`는 그룹별 집계를, `bin(컬럼, 간격)`은 시간을 일정 간격으로 묶습니다. 두 개를 합치면 시계열 차트의 재료가 됩니다.",
+      query: "ApiManagementGatewayLogs\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { title: "4. 순위와 정렬: top / sort by", body: "`top N by 컬럼`은 상위 N건을, `sort by 컬럼 desc`는 전체 정렬을 반환합니다. 느린 요청을 찾을 때 자주 씁니다.",
+      query: "ApiManagementGatewayLogs\n| top 5 by TotalTime desc\n| render barchart" },
+    { title: "5. join 문법: 종류와 on 절", body: "`join kind=inner (오른쪽테이블) on 컬럼`은 두 테이블에서 컬럼 값이 같은 행끼리 합칩니다. 컬럼명이 다르면 `on $left.A == $right.B` 형태를 씁니다. kind는 4가지: inner(양쪽 다 있는 행만), leftouter(왼쪽 전부 + 매칭된 오른쪽), rightouter(오른쪽 전부 + 매칭된 왼쪽), fullouter(양쪽 전부, 매칭 안 된 쪽은 null). 아래는 게이트웨이와 백엔드를 OperationId로 합치는 예시입니다.",
+      query: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| project ApiId, TotalTime, DurationMs" },
+    { title: "6. 실전 조합: 3테이블 대시보드", body: "join을 두 번 이어 붙이면 3개 테이블을 모두 조합할 수 있습니다. 이렇게 만든 결과를 여러 차트로 나눠 한 화면에 배치하는 것이 Azure Workbook 대시보드의 기본 패턴입니다 — 워크북은 이런 쿼리 결과를 텍스트/파라미터 셀과 함께 하나의 문서로 묶어 보여주는 도구입니다.",
+      query: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| summarize avg(TotalTime), avg(DurationMs) by ApiId\n| render columnchart",
+      chartOpts: { seriesCols: ["avg_TotalTime", "avg_DurationMs"] } }
+  ];
+
+  function renderTutorialTab() {
+    var i = state.tutorialStep || 0;
+    var step = KQL_TUTORIAL_STEPS[i];
+    var result = runKustoQuery2(step.query);
+    var resultHtml = result.error
+      ? '<div class="kql-error">' + escapeHtml(result.message) + '</div>'
+      : renderResultTable(result) + renderChart(result, step.chartOpts);
+    return '<div class="example-card">' +
+      '<p style="color:var(--text-dim);font-size:var(--fs-xs)">' + (i + 1) + " / " + KQL_TUTORIAL_STEPS.length + '</p>' +
+      '<h2>' + escapeHtml(step.title) + '</h2>' +
+      '<p>' + escapeHtml(step.body) + '</p>' +
+      '<textarea class="kql-editor" readonly>' + escapeHtml(step.query) + '</textarea>' +
+      resultHtml +
+      '<div style="margin-top:8px;display:flex;gap:8px;">' +
+      '<button class="btn" data-tutorial-action="prev"' + (i === 0 ? " disabled" : "") + '>이전</button>' +
+      '<button class="btn primary" data-tutorial-action="next"' + (i === KQL_TUTORIAL_STEPS.length - 1 ? " disabled" : "") + '>다음</button>' +
+      '</div></div>';
+  }
 
   function render() {
     var app = document.getElementById("app");

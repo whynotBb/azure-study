@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KQL 멀티테이블 실습 랩 — Azure Monitor</title>
+<style>
+  :root {
+    --bg: #F2F4F5; --bg-elevated: #FFFFFF; --bg-inset: #E7EBEC;
+    --border: #D3DBDF; --border-strong: #B7C2C8;
+    --text: #162026; --text-dim: #57666E; --text-faint: #5D6C74;
+    --accent-target: #3260CC; --accent-target-bg: rgba(50,96,204,0.09);
+    --radius-md: 6px;
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+    --fs-xs: 0.8125rem; --fs-sm: 0.9375rem;
+    --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, "SF Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1216; --bg-elevated: #151C21; --bg-inset: #0A0E11;
+      --border: #26313A; --border-strong: #384750;
+      --text: #E7EDF1; --text-dim: #8FA0AC; --text-faint: #7A8791;
+      --accent-target: #5B8DEF; --accent-target-bg: rgba(91,141,239,0.12);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", sans-serif; line-height: 1.6; }
+  code, pre, textarea.kql-editor { font-family: var(--font-mono); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: var(--sp-6) var(--sp-4); }
+  .kql-note { background: var(--accent-target-bg); border: 1px solid var(--accent-target); border-radius: var(--radius-md); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); margin-bottom: var(--sp-5); }
+  .tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); }
+  .tabs button { background: none; border: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabs button.active { color: var(--accent-target); border-bottom-color: var(--accent-target); font-weight: 600; }
+  .kql-editor { width: 100%; min-height: 100px; font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg-elevated); color: var(--text); resize: vertical; }
+  .btn { border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-elevated); color: var(--text); padding: var(--sp-2) var(--sp-4); font-size: var(--fs-sm); cursor: pointer; }
+  .btn.primary { background: var(--accent-target); border-color: var(--accent-target); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .example-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-4); margin-bottom: var(--sp-5); background: var(--bg-elevated); }
+  .example-badges span { display: inline-block; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 2px 8px; margin-right: var(--sp-2); color: var(--text-dim); }
+  .kql-error { color: #b91c1c; font-size: var(--fs-sm); padding: var(--sp-2) 0; }
+  .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); margin-top: var(--sp-2); }
+  .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .storage-banner { display: none; background: #b45309; color: #fff; padding: var(--sp-2) var(--sp-4); font-size: var(--fs-xs); }
+  .storage-banner.show { display: block; }
+</style>
+</head>
+<body>
+  <div class="storage-banner" id="storageBanner">localStorage를 사용할 수 없어 새로고침 시 진행 상태가 저장되지 않습니다(이번 세션 동안만 메모리에 유지됩니다).</div>
+  <div class="wrap">
+    <h1>KQL 멀티테이블 실습 랩</h1>
+    <div class="kql-note">
+      이 페이지의 "KQL"은 <strong>Kusto Query Language</strong>(Azure Monitor/Log Analytics 쿼리 언어)를 의미합니다.
+      Kibana의 <strong>Kibana Query Language</strong>(검색창 필터 문법)와는 문법·용도가 다른 별개의 언어입니다.
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="tutorial">튜토리얼</button>
+      <button data-tab="examples">예제 17개</button>
+    </div>
+    <div id="app"></div>
+  </div>
+<script>
+  var MEMORY_STORE = {};
+  function storageAvailable() {
+    try { var k = "__t"; localStorage.setItem(k, "1"); localStorage.removeItem(k); return true; } catch (e) { return false; }
+  }
+  var HAS_STORAGE = storageAvailable();
+  function loadState() {
+    var raw = HAS_STORAGE ? localStorage.getItem("kqlJoinLabState") : MEMORY_STORE.kqlJoinLabState;
+    if (!HAS_STORAGE) document.getElementById("storageBanner").classList.add("show");
+    if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    return { activeTab: "tutorial", answers: {}, tutorialStep: 0 };
+  }
+  var state = loadState();
+  function persist() {
+    var raw = JSON.stringify(state);
+    if (HAS_STORAGE) { try { localStorage.setItem("kqlJoinLabState", raw); } catch (e) {} }
+    else { MEMORY_STORE.kqlJoinLabState = raw; }
+  }
+  function escapeHtml(str) {
+    return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function setActiveTab(tab) {
+    state.activeTab = tab; persist();
+    document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === tab); });
+    render();
+  }
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-tab]");
+    if (btn) setActiveTab(btn.getAttribute("data-tab"));
+  });
+  function render() {
+    var app = document.getElementById("app");
+    if (state.activeTab === "tutorial") app.innerHTML = "<p>튜토리얼 준비 중(Task 5에서 구현)</p>";
+    else app.innerHTML = "<p>예제 준비 중(Task 4에서 구현)</p>";
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === state.activeTab); });
+    render();
+  });
+</script>
+</body>
+</html>

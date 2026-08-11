@@ -44,12 +44,17 @@
   .storage-banner.show { display: block; }
   .empty-hint { font-size: var(--fs-xs); color: var(--text-dim); }
   .workbook-model-answer { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--sp-3); margin-top: var(--sp-3); }
+  .page-header { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+  .page-header h1 { margin: 0; }
 </style>
 </head>
 <body>
   <div class="storage-banner" id="storageBanner">localStorage를 사용할 수 없어 새로고침 시 진행 상태가 저장되지 않습니다(이번 세션 동안만 메모리에 유지됩니다).</div>
   <div class="wrap">
-    <h1>KQL 멀티테이블 실습 랩</h1>
+    <div class="page-header">
+      <h1>KQL 멀티테이블 실습 랩</h1>
+      <button class="btn" id="resetBtn" title="튜토리얼 진행 단계와 예제 17개의 내 쿼리·정답 펼침 상태를 전부 초기화합니다">다시 시작</button>
+    </div>
     <div class="kql-note">
       이 페이지의 "KQL"은 <strong>Kusto Query Language</strong>(Azure Monitor/Log Analytics 쿼리 언어)를 의미합니다.
       Kibana의 <strong>Kibana Query Language</strong>(검색창 필터 문법)와는 문법·용도가 다른 별개의 언어입니다.
@@ -581,6 +586,15 @@
     var btn = e.target.closest("button[data-tab]");
     if (btn) setActiveTab(btn.getAttribute("data-tab"));
   });
+  function resetAllProgress() {
+    var ok = window.confirm("튜토리얼 진행 단계와 예제 17개에 입력한 내 쿼리·정답 펼침 상태가 모두 초기화됩니다. 계속할까요?");
+    if (!ok) return;
+    state = { activeTab: "tutorial", answers: {}, tutorialStep: 0 };
+    persist();
+    document.querySelectorAll("#tabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === state.activeTab); });
+    render();
+  }
+  document.getElementById("resetBtn").addEventListener("click", resetAllProgress);
   var KQL_TUTORIAL_STEPS = [
     { title: "1. 왜 테이블이 3개인가", body: "게이트웨이(ApiManagementGatewayLogs) → 백엔드(AppRequests) → DB(AppDependencies) 순서로 요청이 흘러갑니다. 게이트웨이 21건 중 5건(OP-1003/1004/1007/1011/1012)은 인증/속도제한으로 차단되어 백엔드에 도달하지 못하고, 나머지 16건만 백엔드에 도달합니다. 이 16건 중 2건은 캐시 히트라 DB를 호출하지 않고, 1건(OP-1021)은 백엔드 자체 로직에서 실패로 기록되어 역시 DB를 호출하지 않아 13건만 DB를 호출합니다. 여기에 APIM 게이트웨이를 거치지 않은 백그라운드 작업 2건(OP-BG01/OP-BG02)이 DB 테이블에 별도로 추가되어, 세 테이블의 행 수는 21 → 16 → 15(13건 상관 + 2건 별도 백그라운드 작업)로 자연스럽게 달라집니다. 아래 쿼리로 게이트웨이 응답코드 분포를 먼저 확인해 보세요.",
       query: "ApiManagementGatewayLogs\n| summarize count() by ResponseCode\n| render piechart" },

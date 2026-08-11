@@ -505,7 +505,6 @@
   function renderExampleCard(ex) {
     var saved = state.answers[ex.id] || {};
     var revealed = !!saved.revealed;
-    var ranOnce = !!saved.ranOnce;
     var badges = ex.tables.map(function (t) { return "<span>" + escapeHtml(t) + "</span>"; }).join("");
     var resultHtml = "";
     if (saved.lastResult) {
@@ -528,7 +527,7 @@
       '<textarea class="kql-editor" data-role="editor">' + escapeHtml(saved.userQuery || "") + '</textarea>' +
       '<div style="margin-top:8px;display:flex;gap:8px;">' +
       '<button class="btn primary" data-action="run">내 쿼리 실행</button>' +
-      '<button class="btn" data-action="reveal"' + (ranOnce ? "" : " disabled") + '>' + (revealed ? "정답 접기" : "정답 보기") + '</button>' +
+      '<button class="btn" data-action="reveal">' + (revealed ? "정답 접기" : "정답 보기") + '</button>' +
       '</div>' + resultHtml + answerHtml + '</div>';
   }
 
@@ -634,7 +633,6 @@
         state.answers[id] = state.answers[id] || {};
         state.answers[id].userQuery = editor.value;
         state.answers[id].lastResult = runKustoQuery2(editor.value);
-        state.answers[id].ranOnce = !state.answers[id].lastResult.error;
         persist();
         render();
       } else if (action === "reveal") {

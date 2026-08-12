@@ -330,6 +330,8 @@
   .lab-input-row { display: flex; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
   .lab-input-row label { font-size: var(--fs-xs); color: var(--text-faint); display: flex; flex-direction: column; gap: 4px; }
   .lab-input-row input { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; background: var(--bg); color: var(--text); }
+  .lab-input-row label.lab-check { flex-direction: row; align-items: center; gap: 6px; }
+  .lab-input-row label.lab-check input { width: auto; flex: 0 0 auto; padding: 0; }
   .lab-route-tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4); }
   .lab-route-tabs button.active { border-color: var(--accent-target); color: var(--accent-target); }
   .kusto-editor { width: 100%; min-height: 120px; font-family: var(--font-mono); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg); color: var(--text); resize: vertical; }
@@ -1577,7 +1579,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         example: "ApiManagementGatewayLogs\n| top 10 by TotalTime desc" },
       { name: "join — 테이블 결합", code: "join", url: "https://learn.microsoft.com/ko-kr/kusto/query/join-operator",
         easy: "OperationId 같은 공통 키로 두 테이블(예: AppRequests와 AppExceptions)을 연결합니다. 이 페이지의 단일 테이블 Kusto 실행기(\"Kusto 실행기\" 탭)는 join을 지원하지 않지만, 여러 테이블 join은 \"KQL 조인 랩\" 탭에서 실습할 수 있습니다.",
-        when: "실패한 요청과 그 원인 예외를 함께 보고 싶을 때 (실제 Azure Monitor에서만 사용 가능, 이 프로젝트의 로컬 실행기에서는 미지원)",
+        when: "실패한 요청과 그 원인 예외를 함께 보고 싶을 때 (로컬 단일 테이블 실행기에서는 미지원 — 여러 테이블 join은 \"KQL 조인 랩\" 탭 참조)",
         example: 'AppRequests\n| where Success == false\n| join kind=inner (AppExceptions) on OperationId\n| project Name, ExceptionType' },
       { name: "let — 변수 선언", code: "let", url: "https://learn.microsoft.com/ko-kr/kusto/query/let-statement",
         easy: "쿼리 안에서 값이나 표현식에 이름을 붙여 재사용합니다. 세미콜론(;)으로 문장을 끝내고, 여러 개를 이어서 선언할 수 있습니다.",
@@ -1711,7 +1713,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       id: "orders-get",
       label: "GET /orders — 조회 + 인증 + 요율 제한 + CORS",
       method: "GET", path: "/orders",
-      inputs: ["apikey"],
+      inputs: ["apikey", "clientIp"],
       kongYaml:
         '_format_version: "3.0"\n' +
         'services:\n' +
@@ -1937,12 +1939,12 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         }
         trace.push({ policy: "ip-restriction", effect: "통과 — 차단 목록에 없음" });
       } else if (p.type === "rate-limiting") {
-        var rl = checkRateLimit(kongRateCounters, route.id, p.config.limit, p.config.windowSec);
+        var rl = checkRateLimitFixedWindow(kongRateCounters, route.id, p.config.limit, p.config.windowSec);
         if (!rl.allowed) {
-          trace.push({ policy: "rate-limiting", effect: "차단 — " + p.config.limit + "회/" + p.config.windowSec + "초 초과 (429)" });
+          trace.push({ policy: "rate-limiting", effect: "차단 — " + p.config.limit + "회/" + p.config.windowSec + "초 초과 (429, 고정 윈도우)" });
           return { statusCode: 429, headers: {}, body: { message: "Too Many Requests" }, trace: trace };
         }
-        trace.push({ policy: "rate-limiting", effect: "통과 — 남은 호출 " + rl.remaining + "회" });
+        trace.push({ policy: "rate-limiting", effect: "통과 — 남은 호출 " + rl.remaining + "회 (고정 윈도우)" });
       } else if (p.type === "response-transformer") {
         trace.push({ policy: "response-transformer", effect: "응답 헤더 추가: " + p.config.addHeader.name + "=" + p.config.addHeader.value });
       } else if (p.type === "request-termination") {
@@ -2014,12 +2016,12 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
               trace.push({ policy: tag, effect: "이 랩은 counter-key로 @(context.Request.IpAddress)만 지원합니다 — route 단위 카운터로 대체" });
             }
           }
-          var rl = checkRateLimitFixedWindow(apimRateCounters, counterKey, calls, renewal);
+          var rl = checkRateLimit(apimRateCounters, counterKey, calls, renewal);
           if (!rl.allowed) {
-            trace.push({ policy: tag, effect: "차단 — " + calls + "회/" + renewal + "초 초과 (429, 고정 윈도우 — 실제 v2 토큰 버킷의 단순화)" });
+            trace.push({ policy: tag, effect: "차단 — " + calls + "회/" + renewal + "초 초과 (429, 슬라이딩 윈도우 — classic 티어와 유사, v2 티어는 토큰 버킷 사용)" });
             return { blocked: true, statusCode: 429, body: { message: "Too Many Requests" } };
           }
-          trace.push({ policy: tag, effect: "통과 — 남은 호출 " + rl.remaining + "회 (고정 윈도우 — 실제 v2 토큰 버킷의 단순화)" });
+          trace.push({ policy: tag, effect: "통과 — 남은 호출 " + rl.remaining + "회 (슬라이딩 윈도우 — classic 티어와 유사, v2 티어는 토큰 버킷 사용)" });
         }
       } else if (tag === "ip-filter") {
         if (!isInbound) {
@@ -2187,7 +2189,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       if (route.inputs.length === 0) {
         html += '<span class="pwhen">이 라우트는 apikey/IP 입력이 필요 없습니다.</span>';
       }
-      html += '<label><input type="checkbox" id="labInputForceFail"> 백엔드 강제 실패(503)</label>';
+      html += '<label class="lab-check"><input type="checkbox" id="labInputForceFail"> 백엔드 강제 실패(503)</label>';
       html += "</div>";
       inputsBody.innerHTML = html;
     }
@@ -2230,7 +2232,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       '<div class="lab-input-row" style="margin-top:var(--sp-3);">' +
       '<label>apikey 헤더 값<input type="text" id="labPolicyApikey" placeholder="예: demo-key-123"></label>' +
       '<label>요청자 IP<input type="text" id="labPolicyIp" placeholder="예: 10.0.0.99"></label>' +
-      '<label><input type="checkbox" id="labPolicyForceFail"> 백엔드 강제 실패(503)</label>' +
+      '<label class="lab-check"><input type="checkbox" id="labPolicyForceFail"> 백엔드 강제 실패(503)</label>' +
       "</div>" +
       '<button class="btn primary" type="button" id="labPolicyRun">실행</button>' +
       '<button class="btn" type="button" id="labPolicyResetCounters" style="margin-left:var(--sp-2);">카운터 초기화</button>' +
@@ -2538,8 +2540,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   function kustoExtractColRefs(op, clause) {
     if (op === "where") {
       return clause.split(/\s+and\s+/i).map(function (c) {
-        var m = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)/);
-        return m ? m[1] : null;
+        var m = c.match(/^(?:\w+\((\w+)\)|(\w+))\s*(==|!=|>=|<=|>|<|!contains|contains)/);
+        return m ? (m[1] || m[2]) : null;
       }).filter(Boolean);
     }
     if (op === "project") return clause.split(",").map(function (s) { return s.trim(); });
@@ -3680,8 +3682,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         var refs = clause.split(/\s+and\s+/i).map(function (c) {
           var u = c.match(/^(?:isnull|isnotempty)\((\w+)\)$/);
           if (u) return u[1];
-          var mm = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)/);
-          return mm ? mm[1] : null;
+          var mm = c.match(/^(?:\w+\((\w+)\)|(\w+))\s*(==|!=|>=|<=|>|<|!contains|contains)/);
+          return mm ? (mm[1] || mm[2]) : null;
         }).filter(Boolean);
         var badCols = refs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
         if (badCols.length) {

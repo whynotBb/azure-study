@@ -636,7 +636,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       <div class="panel-head">
         <span class="eyebrow">20 · Local Test Lab</span>
         <h1>백엔드 지연/타임아웃</h1>
-        <p class="desc">billing-get 라우트(백엔드 재시도+커스텀 오류 응답)를 대상으로, 백엔드 응답 지연(ms)을 직접 입력해 타임아웃·재시도 동작을 체험합니다. APIM 타임아웃은 30초(30000ms), Kong은 데모용 축소값 3000ms입니다 — 지연 값을 이 사이(예: 5000ms)로 넣으면 APIM은 재시도 후 커스텀 오류로 응답하고 Kong은 즉시 실패(재시도 없음)하는 차이를 비교할 수 있습니다.</p>
+        <p class="desc">billing-get 라우트(백엔드 재시도+커스텀 오류 응답)를 대상으로, 백엔드 응답 지연(ms)을 직접 입력해 타임아웃·재시도 동작을 체험합니다. APIM 타임아웃은 30초(30000ms), Kong은 데모용 축소값 3000ms입니다. 지연을 <strong>3000~30000ms 사이(예: 5000ms)</strong>로 넣으면 Kong은 타임아웃으로 즉시 실패하는데 APIM은 아직 타임아웃 전이라 성공 응답이 옵니다 — 두 시스템의 타임아웃 설정값을 맞추지 않으면 이런 예측 불가능한 비대칭이 생긴다는 뜻입니다. 지연을 <strong>30000ms 초과(예: 35000ms)</strong>로 넣으면 이번엔 둘 다 실패하는데, APIM은 재시도 3회 후 커스텀 오류로 응답하고 Kong은 즉시 실패(재시도 없음)하는 차이를 비교할 수 있습니다.</p>
       </div>
       <div id="labTimeoutBody"></div>
     </section>

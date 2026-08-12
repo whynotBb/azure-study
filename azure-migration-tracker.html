@@ -137,12 +137,6 @@
     color: var(--text-faint);
     font-weight: 600;
   }
-  .rail-brand .name {
-    font-size: var(--fs-md);
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .rail-brand .name .accent { color: var(--accent-target); }
 
   .rail-nav {
     display: flex;
@@ -188,6 +182,7 @@
   .nav-group-head { justify-content: space-between; }
   .nav-group-head .caret { flex: none; width: 12px; height: 12px; transition: transform .15s ease; }
   .nav-group.open .nav-group-head .caret { transform: rotate(90deg); }
+  .caret-spacer { flex: none; width: 12px; height: 12px; }
   .nav-children { display: none; flex-direction: column; gap: 2px; margin: 2px 0 4px 20px; padding-left: var(--sp-2); border-left: 1px solid var(--border); }
   .nav-group.open .nav-children { display: flex; }
   @media (max-width: 860px) {
@@ -391,7 +386,6 @@
   <nav class="rail" id="rail">
     <div class="rail-brand">
       <span class="mark">Learning Hub</span>
-      <span class="name">Kong/DB/Kibana <span class="accent">→</span> Azure</span>
     </div>
     <div class="rail-nav" id="railNav" role="tablist"></div>
   </nav>
@@ -795,11 +789,11 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       railNav.appendChild(group);
     } else {
       var btn2 = document.createElement("button");
-      btn2.className = "nav-item";
+      btn2.className = "nav-item nav-group-head";
       btn2.type = "button";
       btn2.setAttribute("role", "tab");
       btn2.dataset.tab = n.id;
-      btn2.innerHTML = navIconSvg(n.icon) + "<span>" + n.label + "</span>";
+      btn2.innerHTML = navIconSvg(n.icon) + "<span>" + n.label + "</span>" + '<span class="caret-spacer" aria-hidden="true"></span>';
       btn2.addEventListener("click", function () { switchTab(n.id); });
       railNav.appendChild(btn2);
     }

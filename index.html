@@ -553,7 +553,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       <div class="panel-head">
         <span class="eyebrow">11 · Local Test Lab</span>
         <h1>APIM Policy</h1>
-        <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 7개 정책(check-header, rate-limit, cors, set-header, rewrite-uri, ip-filter, return-response)만 실제 동작을 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다.</p>
+        <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 8개 정책(check-header, rate-limit, rate-limit-by-key, cors, set-header, rewrite-uri, ip-filter, return-response)과 backend 섹션의 retry, on-error 섹션의 return-response를 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다.</p>
       </div>
       <div id="labPolicyBody"></div>
     </section>
@@ -1836,6 +1836,40 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         '</policies>',
       backendResponse: { report: "ok" }
     }
+    ,
+    {
+      id: "billing-get",
+      label: "GET /billing — 백엔드 재시도 + 커스텀 오류 응답",
+      method: "GET", path: "/billing",
+      inputs: [],
+      kongYaml:
+        '_format_version: "3.0"\n' +
+        'services:\n' +
+        '  - name: billing-service\n' +
+        '    url: http://billing.internal\n' +
+        '    retries: 3\n' +
+        '    routes:\n' +
+        '      - name: billing-route\n' +
+        '        paths: ["/billing"]',
+      kongPlugins: [],
+      apimPolicyXml:
+        '<policies>\n' +
+        '  <inbound><base /></inbound>\n' +
+        '  <backend>\n' +
+        '    <retry condition="@(context.Response.StatusCode == 503)" count="3" interval="2" max-interval="10" delta="2" first-fast-retry="true">\n' +
+        '      <forward-request timeout="30" />\n' +
+        '    </retry>\n' +
+        '  </backend>\n' +
+        '  <on-error>\n' +
+        '    <return-response>\n' +
+        '      <set-status code="503" reason="Service Unavailable" />\n' +
+        '      <set-body>{"error":"billing-service 응답 없음 - 잠시 후 다시 시도하세요"}</set-body>\n' +
+        '    </return-response>\n' +
+        '  </on-error>\n' +
+        '  <outbound><base /></outbound>\n' +
+        '</policies>',
+      backendResponse: { invoices: [{ id: 501, amount: 89000 }] }
+    }
   ];
 
   function escapeHtml(str) {
@@ -1908,6 +1942,10 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     route.kongPlugins.forEach(function (p) {
       if (p.type === "response-transformer") headers[p.config.addHeader.name] = p.config.addHeader.value;
     });
+    if (input.forceBackendFailure) {
+      trace.push({ policy: "backend", effect: "백엔드 강제 실패 시뮬레이션 (503) — Kong의 재시도는 Service의 retries 필드로 별도 설정되며, 이 랩은 그 재시도 동작 자체는 시뮬레이션하지 않습니다" });
+      return { statusCode: 503, headers: headers, body: { message: "Service Unavailable" }, trace: trace };
+    }
     return { statusCode: 200, headers: headers, body: route.backendResponse, trace: trace };
   }
 
@@ -2004,6 +2042,56 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     return { blocked: false };
   }
 
+  function runApimBackendSection(elements, input, trace) {
+    var forced = !!input.forceBackendFailure;
+    var failStatus = 503;
+    if (!forced) return { failed: false };
+
+    var retryEl = null;
+    for (var i = 0; i < elements.length; i++) {
+      if (elements[i].tagName === "retry") { retryEl = elements[i]; break; }
+    }
+    if (!retryEl) {
+      trace.push({ policy: "backend", effect: "백엔드 호출 실패 (" + failStatus + ")" });
+      return { failed: true, statusCode: failStatus };
+    }
+
+    var count = parseInt(retryEl.getAttribute("count"), 10) || 1;
+    var interval = parseInt(retryEl.getAttribute("interval"), 10) || 0;
+    var condition = retryEl.getAttribute("condition") || "";
+    var condMatch = condition.match(/context\.Response\.StatusCode\s*==\s*(\d+)/);
+    if (condMatch) {
+      if (parseInt(condMatch[1], 10) !== failStatus) {
+        trace.push({ policy: "retry", effect: "조건(StatusCode==" + condMatch[1] + ") 불일치 — 재시도 미실행" });
+        return { failed: true, statusCode: failStatus };
+      }
+    } else {
+      trace.push({ policy: "retry", effect: "이 조건식은 시뮬레이션 대상이 아니며 항상 재시도합니다" });
+    }
+    for (var r = 1; r <= count; r++) {
+      trace.push({ policy: "retry", effect: "재시도 " + r + "/" + count + " (" + interval + "초 대기 후) — 여전히 " + failStatus });
+    }
+    trace.push({ policy: "retry", effect: count + "회 재시도 소진 — 최종 실패" });
+    return { failed: true, statusCode: failStatus };
+  }
+
+  function runApimOnErrorSection(elements, trace, failStatus) {
+    for (var i = 0; i < elements.length; i++) {
+      var el = elements[i];
+      var tag = el.tagName;
+      if (tag === "base") continue;
+      if (tag === "return-response") {
+        var statusEl = el.querySelector("set-status");
+        var bodyEl = el.querySelector("set-body");
+        var code = statusEl ? parseInt(statusEl.getAttribute("code"), 10) : failStatus;
+        trace.push({ policy: "on-error/return-response", effect: "커스텀 오류 응답 반환 (" + code + ")" });
+        return { statusCode: code, body: { message: bodyEl ? bodyEl.textContent : "" } };
+      }
+      trace.push({ policy: "on-error/" + tag, effect: "⚠ 이 학습 도구에서는 시뮬레이션 미지원 (구문은 유효)" });
+    }
+    return null;
+  }
+
   function runApimMock(route, policyXml, input) {
     var trace = [];
     var headers = {};
@@ -2017,6 +2105,15 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     }
     var inResult = runApimSection(Array.prototype.slice.call(inbound.children), headers, trace, route, input, true);
     if (inResult.blocked) return { statusCode: inResult.statusCode, headers: headers, body: inResult.body, trace: trace };
+
+    var backend = parsed.doc.querySelector("policies > backend");
+    var backendResult = runApimBackendSection(backend ? Array.prototype.slice.call(backend.children) : [], input, trace);
+    if (backendResult.failed) {
+      var onError = parsed.doc.querySelector("policies > on-error");
+      var overridden = onError ? runApimOnErrorSection(Array.prototype.slice.call(onError.children), trace, backendResult.statusCode) : null;
+      if (overridden) return { statusCode: overridden.statusCode, headers: headers, body: overridden.body, trace: trace };
+      return { statusCode: backendResult.statusCode, headers: headers, body: { message: "Backend call failed" }, trace: trace };
+    }
 
     var outbound = parsed.doc.querySelector("policies > outbound");
     if (outbound) {
@@ -2067,8 +2164,9 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         html += '<label>요청자 IP<input type="text" id="labInputIp" placeholder="예: 10.0.0.99"></label>';
       }
       if (route.inputs.length === 0) {
-        html += '<span class="pwhen">이 라우트는 별도 입력 없이 항상 동일하게 동작합니다.</span>';
+        html += '<span class="pwhen">이 라우트는 apikey/IP 입력이 필요 없습니다.</span>';
       }
+      html += '<label><input type="checkbox" id="labInputForceFail"> 백엔드 강제 실패(503)</label>';
       html += "</div>";
       inputsBody.innerHTML = html;
     }
@@ -2076,7 +2174,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     function currentInput() {
       var apikeyEl = document.getElementById("labInputApikey");
       var ipEl = document.getElementById("labInputIp");
-      return { apikeyHeader: apikeyEl ? apikeyEl.value : "", clientIp: ipEl ? ipEl.value : "" };
+      var forceFailEl = document.getElementById("labInputForceFail");
+      return { apikeyHeader: apikeyEl ? apikeyEl.value : "", clientIp: ipEl ? ipEl.value : "", forceBackendFailure: forceFailEl ? forceFailEl.checked : false };
     }
 
     body.querySelectorAll("[data-route-idx]").forEach(function (btn) {
@@ -2110,6 +2209,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       '<div class="lab-input-row" style="margin-top:var(--sp-3);">' +
       '<label>apikey 헤더 값<input type="text" id="labPolicyApikey" placeholder="예: demo-key-123"></label>' +
       '<label>요청자 IP<input type="text" id="labPolicyIp" placeholder="예: 10.0.0.99"></label>' +
+      '<label><input type="checkbox" id="labPolicyForceFail"> 백엔드 강제 실패(503)</label>' +
       "</div>" +
       '<button class="btn primary" type="button" id="labPolicyRun">실행</button>' +
       '<button class="btn" type="button" id="labPolicyResetCounters" style="margin-left:var(--sp-2);">카운터 초기화</button>' +
@@ -2137,7 +2237,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       var xml = document.getElementById("labPolicyXmlInput").value;
       var input = {
         apikeyHeader: document.getElementById("labPolicyApikey").value,
-        clientIp: document.getElementById("labPolicyIp").value
+        clientIp: document.getElementById("labPolicyIp").value,
+        forceBackendFailure: document.getElementById("labPolicyForceFail").checked
       };
       renderLabResult(document.getElementById("labPolicyResult"), "실행 결과", runApimMock(route, xml, input));
     });

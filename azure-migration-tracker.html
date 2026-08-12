@@ -1,7 +1,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Azure 전환 학습 트래커</title>
-<meta name="description" content="Kong/Cassandra/PostgreSQL/Kibana → Azure APIM/Monitor 전환 학습용 인터랙티브 트래커">
+<title>Azure 전환 학습 허브</title>
+<meta name="description" content="Kong/Cassandra/PostgreSQL/Kibana → Azure APIM/Monitor 전환 학습용 인터랙티브 허브">
 <style>
   :root {
     color-scheme: light dark;
@@ -380,7 +380,7 @@
 <div class="app-shell">
   <nav class="rail" id="rail">
     <div class="rail-brand">
-      <span class="mark">Learning Tracker</span>
+      <span class="mark">Learning Hub</span>
       <span class="name">Kong/DB/Kibana <span class="accent">→</span> Azure</span>
     </div>
     <div class="rail-nav" id="railNav" role="tablist"></div>
@@ -646,7 +646,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: true, kqlgroup: true, datainfra: true, azuremonitor: true, lab: true } };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: false, kqlgroup: false, datainfra: false, azuremonitor: false, lab: false } };
   }
   function loadState() {
     var raw = null;

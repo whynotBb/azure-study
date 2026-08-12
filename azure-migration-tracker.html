@@ -375,6 +375,16 @@
   .workbook-demo-controls { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
   .demo-highlight { outline: 2px solid var(--accent-target); outline-offset: 2px; animation: demo-pulse 1s ease-in-out infinite; }
   @keyframes demo-pulse { 0%, 100% { outline-color: var(--accent-target); } 50% { outline-color: transparent; } }
+  .kql-note { background: var(--accent-target-bg); border: 1px solid var(--accent-target); border-radius: var(--radius-md); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); margin-bottom: var(--sp-5); }
+  .kql-lab-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); }
+  .kql-lab-tabs button { background: none; border: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; }
+  .kql-lab-tabs button.active { color: var(--accent-target); border-bottom-color: var(--accent-target); font-weight: 600; }
+  .kql-editor { width: 100%; min-height: 100px; font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg-elevated); color: var(--text); resize: vertical; }
+  .example-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-4); margin-bottom: var(--sp-5); background: var(--bg-elevated); }
+  .example-badges span { display: inline-block; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 2px 8px; margin-right: var(--sp-2); color: var(--text-dim); }
+  .kql-error { color: #b91c1c; font-size: var(--fs-sm); padding: var(--sp-2) 0; }
+  .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); margin-top: var(--sp-2); }
+  .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 </style>
 
 <div class="app-shell">
@@ -624,6 +634,26 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       <div id="workbookDemoBanner"></div>
       <div id="labWorkbookBody"></div>
     </section>
+
+    <section class="panel" id="panel-kql-join-lab" data-panel>
+      <div class="panel-head apim-ref-head">
+        <div class="htext">
+          <span class="eyebrow">19 · Local Test Lab</span>
+          <h1>KQL 멀티테이블 실습 랩</h1>
+          <p class="desc">게이트웨이(ApiManagementGatewayLogs)·백엔드(AppRequests)·DB(AppDependencies) 3개 가상 테이블을 튜토리얼로 익히고, 17개 예제(단일 테이블/2테이블 join/3테이블 조합)를 직접 쿼리로 풀어본 뒤 정답과 비교하세요.</p>
+        </div>
+        <button class="btn" id="kqlLabResetBtn" title="튜토리얼 진행 단계와 예제 17개의 내 쿼리·정답 펼침 상태를 전부 초기화합니다">다시 시작</button>
+      </div>
+      <div class="kql-note">
+        이 탭의 "KQL"은 <strong>Kusto Query Language</strong>(Azure Monitor/Log Analytics 쿼리 언어)를 의미합니다.
+        Kibana의 <strong>Kibana Query Language</strong>(검색창 필터 문법)와는 문법·용도가 다른 별개의 언어입니다.
+      </div>
+      <div class="kql-lab-tabs" id="kqlLabTabs">
+        <button data-tab="tutorial">튜토리얼</button>
+        <button data-tab="examples">예제 17개</button>
+      </div>
+      <div id="kqlLabApp"></div>
+    </section>
   </div>
 </div>
 
@@ -717,7 +747,8 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         , { id: "lab-kusto", label: "Kusto 실행기", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>' },
         { id: "lab-alert", label: "알림 시뮬레이터", icon: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>' },
         { id: "lab-workbook", label: "Workbooks 구축", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9h10M7 13h6M7 17h4"/>' }
-      ] }
+      ] },
+    { id: "kql-join-lab", label: "KQL 조인 랩", icon: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>' }
   ];
 
   function navIconSvg(icon) {
@@ -3209,5 +3240,623 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     input.addEventListener("change", function () { state.proc[id] = input.checked; persist(); });
     procList.appendChild(row);
   });
+})();
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  var GATEWAY_LOGS = [
+    { TimeGenerated: "2026-08-11T09:00:05Z", OperationId: "OP-1001", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 82, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-11T09:00:41Z", OperationId: "OP-1002", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 118, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-11T09:01:12Z", OperationId: "OP-1003", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 401, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 9, CallerIpAddress: "203.0.113.12" },
+    { TimeGenerated: "2026-08-11T09:01:47Z", OperationId: "OP-1004", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 429, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 4, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-11T09:02:30Z", OperationId: "OP-1005", ApiId: "users-api", Method: "GET", Url: "/users/1", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 640, CallerIpAddress: "203.0.113.20" },
+    { TimeGenerated: "2026-08-11T09:03:01Z", OperationId: "OP-1006", ApiId: "users-api", Method: "GET", Url: "/users/2", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 95, CallerIpAddress: "203.0.113.21" },
+    { TimeGenerated: "2026-08-11T09:03:44Z", OperationId: "OP-1007", ApiId: "users-api", Method: "GET", Url: "/users/3", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 6, CallerIpAddress: "203.0.113.22" },
+    { TimeGenerated: "2026-08-11T09:04:12Z", OperationId: "OP-1008", ApiId: "users-api", Method: "GET", Url: "/users/4", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 88, CallerIpAddress: "203.0.113.20" },
+    { TimeGenerated: "2026-08-11T09:04:55Z", OperationId: "OP-1009", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 730, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-11T09:05:20Z", OperationId: "OP-1010", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 101, CallerIpAddress: "203.0.113.12" },
+    { TimeGenerated: "2026-08-11T09:05:58Z", OperationId: "OP-1011", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 3, CallerIpAddress: "203.0.113.30" },
+    { TimeGenerated: "2026-08-11T09:06:33Z", OperationId: "OP-1012", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 403, BackendResponseCode: 0, IsRequestSuccess: false, TotalTime: 3, CallerIpAddress: "203.0.113.30" },
+    { TimeGenerated: "2026-08-11T09:07:02Z", OperationId: "OP-1013", ApiId: "users-api", Method: "GET", Url: "/users/5", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 92, CallerIpAddress: "203.0.113.21" },
+    { TimeGenerated: "2026-08-11T09:07:40Z", OperationId: "OP-1014", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 79, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-11T09:08:15Z", OperationId: "OP-1015", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 500, BackendResponseCode: 500, IsRequestSuccess: false, TotalTime: 850, CallerIpAddress: "203.0.113.11" },
+    { TimeGenerated: "2026-08-11T09:08:50Z", OperationId: "OP-1016", ApiId: "users-api", Method: "GET", Url: "/users/6", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 100, CallerIpAddress: "203.0.113.22" },
+    { TimeGenerated: "2026-08-11T09:09:25Z", OperationId: "OP-1017", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 113, CallerIpAddress: "203.0.113.12" },
+    { TimeGenerated: "2026-08-11T09:10:02Z", OperationId: "OP-1018", ApiId: "legacy-api", Method: "GET", Url: "/legacy/report", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 410, CallerIpAddress: "203.0.113.30" },
+    { TimeGenerated: "2026-08-11T09:10:47Z", OperationId: "OP-1019", ApiId: "users-api", Method: "GET", Url: "/users/7", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 91, CallerIpAddress: "203.0.113.21" },
+    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 85, CallerIpAddress: "203.0.113.10" },
+    { TimeGenerated: "2026-08-11T09:11:50Z", OperationId: "OP-1021", ApiId: "orders-api", Method: "GET", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 90, CallerIpAddress: "203.0.113.11" }
+  ];
+
+  var APP_REQUESTS = [
+    { TimeGenerated: "2026-08-11T09:00:05Z", OperationId: "OP-1001", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 75, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:00:41Z", OperationId: "OP-1002", Name: "POST Orders/Create", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 108, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:02:30Z", OperationId: "OP-1005", Name: "GET Users/GetById", Url: "/users/1", Success: true, ResultCode: "200", DurationMs: 600, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:03:01Z", OperationId: "OP-1006", Name: "GET Users/GetById", Url: "/users/2", Success: true, ResultCode: "200", DurationMs: 40, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:04:12Z", OperationId: "OP-1008", Name: "GET Users/GetById", Url: "/users/4", Success: true, ResultCode: "200", DurationMs: 78, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:04:55Z", OperationId: "OP-1009", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 700, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:05:20Z", OperationId: "OP-1010", Name: "POST Orders/Create", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 90, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:07:02Z", OperationId: "OP-1013", Name: "GET Users/GetById", Url: "/users/5", Success: true, ResultCode: "200", DurationMs: 80, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:07:40Z", OperationId: "OP-1014", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 68, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:08:15Z", OperationId: "OP-1015", Name: "GET Orders/List", Url: "/orders", Success: false, ResultCode: "500", DurationMs: 830, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:08:50Z", OperationId: "OP-1016", Name: "GET Users/GetById", Url: "/users/6", Success: true, ResultCode: "200", DurationMs: 85, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:09:25Z", OperationId: "OP-1017", Name: "POST Orders/Create", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 100, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:10:02Z", OperationId: "OP-1018", Name: "GET Legacy/Report", Url: "/legacy/report", Success: true, ResultCode: "200", DurationMs: 380, AppRoleName: "legacy-api-backend" },
+    { TimeGenerated: "2026-08-11T09:10:47Z", OperationId: "OP-1019", Name: "GET Users/GetById", Url: "/users/7", Success: true, ResultCode: "200", DurationMs: 35, AppRoleName: "users-api-backend" },
+    { TimeGenerated: "2026-08-11T09:11:30Z", OperationId: "OP-1020", Name: "GET Orders/List", Url: "/orders", Success: true, ResultCode: "200", DurationMs: 72, AppRoleName: "orders-api-backend" },
+    { TimeGenerated: "2026-08-11T09:11:51Z", OperationId: "OP-1021", Name: "GET Orders/List", Url: "/orders", Success: false, ResultCode: "200", DurationMs: 65, AppRoleName: "orders-api-backend" }
+  ];
+
+  var APP_DEPENDENCIES = [
+    { TimeGenerated: "2026-08-11T09:00:06Z", OperationId: "OP-1001", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "SELECT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 60 },
+    { TimeGenerated: "2026-08-11T09:00:42Z", OperationId: "OP-1002", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "INSERT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 90 },
+    { TimeGenerated: "2026-08-11T09:00:30Z", OperationId: "OP-BG01", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "compaction-health-check", Success: true, ResultCode: "0", DurationMs: 1200 },
+    { TimeGenerated: "2026-08-11T09:02:31Z", OperationId: "OP-1005", Target: "postgres-users-db", DependencyType: "SQL", Name: "SELECT users_by_id", Success: true, ResultCode: "0", DurationMs: 560 },
+    { TimeGenerated: "2026-08-11T09:04:13Z", OperationId: "OP-1008", Target: "postgres-users-db", DependencyType: "SQL", Name: "SELECT users_by_id", Success: true, ResultCode: "0", DurationMs: 55 },
+    { TimeGenerated: "2026-08-11T09:04:56Z", OperationId: "OP-1009", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "SELECT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 660 },
+    { TimeGenerated: "2026-08-11T09:05:21Z", OperationId: "OP-1010", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "INSERT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 70 },
+    { TimeGenerated: "2026-08-11T09:07:03Z", OperationId: "OP-1013", Target: "postgres-users-db", DependencyType: "SQL", Name: "SELECT users_by_id", Success: true, ResultCode: "0", DurationMs: 58 },
+    { TimeGenerated: "2026-08-11T09:07:41Z", OperationId: "OP-1014", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "SELECT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 50 },
+    { TimeGenerated: "2026-08-11T09:08:16Z", OperationId: "OP-1015", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "SELECT orders_by_customer", Success: false, ResultCode: "Timeout", DurationMs: 800 },
+    { TimeGenerated: "2026-08-11T09:08:51Z", OperationId: "OP-1016", Target: "postgres-users-db", DependencyType: "SQL", Name: "SELECT users_by_id", Success: true, ResultCode: "0", DurationMs: 62 },
+    { TimeGenerated: "2026-08-11T09:09:00Z", OperationId: "OP-BG02", Target: "postgres-users-db", DependencyType: "SQL", Name: "nightly-backup-verify", Success: true, ResultCode: "0", DurationMs: 4200 },
+    { TimeGenerated: "2026-08-11T09:09:26Z", OperationId: "OP-1017", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "INSERT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 75 },
+    { TimeGenerated: "2026-08-11T09:10:03Z", OperationId: "OP-1018", Target: "postgres-legacy-db", DependencyType: "SQL", Name: "SELECT legacy_reports", Success: true, ResultCode: "0", DurationMs: 350 },
+    { TimeGenerated: "2026-08-11T09:11:31Z", OperationId: "OP-1020", Target: "cassandra-orders-cluster", DependencyType: "Cassandra", Name: "SELECT orders_by_customer", Success: true, ResultCode: "0", DurationMs: 48 }
+  ];
+
+  var KUSTO_TABLES = { ApiManagementGatewayLogs: GATEWAY_LOGS, AppRequests: APP_REQUESTS, AppDependencies: APP_DEPENDENCIES };
+
+  var MEMORY_STORE = {};
+
+  function kustoParseLiteral(raw) {
+    raw = raw.trim();
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
+    var strMatch = raw.match(/^"(.*)"$/);
+    if (strMatch) return strMatch[1];
+    throw new Error("문자열 값은 큰따옴표로 감싸야 합니다: " + raw);
+  }
+
+  function kustoCompare(a, op, b) {
+    if (op === "==") return a == b;
+    if (op === "!=") return a != b;
+    if (op === ">") return a > b;
+    if (op === "<") return a < b;
+    if (op === ">=") return a >= b;
+    if (op === "<=") return a <= b;
+    if (op === "contains") return String(a).indexOf(String(b)) !== -1;
+    if (op === "!contains") return String(a).indexOf(String(b)) === -1;
+    throw new Error("지원하지 않는 비교 연산자: " + op);
+  }
+
+  function kustoApplyWhere(rows, clause) {
+    if (/\bor\b/i.test(clause)) throw new Error("이 시뮬레이터는 where 절에서 'or'를 지원하지 않습니다(and만 지원). 여러 조건은 개별 where 스테이지로 나눠보세요.");
+    var conditions = clause.split(/\s+and\s+/i).map(function (c) {
+      var unary = c.match(/^(isnull|isnotempty)\((\w+)\)$/);
+      if (unary) return { fn: unary[1], col: unary[2] };
+      var m = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)\s*(.+)$/);
+      if (!m) throw new Error("조건을 해석할 수 없습니다: " + c);
+      return { col: m[1], op: m[2], val: kustoParseLiteral(m[3]) };
+    });
+    return rows.filter(function (row) {
+      return conditions.every(function (c) {
+        if (c.fn === "isnull") return row[c.col] === null || row[c.col] === undefined;
+        if (c.fn === "isnotempty") return row[c.col] !== null && row[c.col] !== undefined && row[c.col] !== "";
+        return kustoCompare(row[c.col], c.op, c.val);
+      });
+    });
+  }
+
+  function kustoApplyProject(rows, clause) {
+    var cols = clause.split(",").map(function (s) { return s.trim(); });
+    return rows.map(function (row) {
+      var out = {};
+      cols.forEach(function (c) { out[c] = row[c]; });
+      return out;
+    });
+  }
+
+  function kustoBinValue(iso, amount, unit) {
+    var ms = amount * (unit === "h" ? 3600000 : unit === "m" ? 60000 : 1000);
+    var t = new Date(iso).getTime();
+    return new Date(Math.floor(t / ms) * ms).toISOString();
+  }
+
+  function kustoApplySummarize(rows, clause) {
+    var m = clause.match(/^(.+?)\s+by\s+(.+)$/);
+    if (!m) throw new Error("summarize 문법을 해석할 수 없습니다: " + clause);
+    var aggSpecs = m[1].split(",").map(function (part) {
+      var spec = part.trim().match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?$/);
+      if (!spec) throw new Error("summarize 문법을 해석할 수 없습니다: " + clause);
+      return { aggToken: spec[1], aggCol: spec[2] };
+    });
+    var byClause = m[2].trim();
+    var byBin = byClause.match(/^bin\(\s*(\w+)\s*,\s*(\d+)(m|h|s)\s*\)$/);
+    var groups = {};
+    rows.forEach(function (row) {
+      var key = byBin ? kustoBinValue(row[byBin[1]], Number(byBin[2]), byBin[3]) : row[byClause];
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return Object.keys(groups).sort().map(function (key) {
+      var group = groups[key];
+      var out = {};
+      out[byBin ? byBin[1] : byClause] = key;
+      aggSpecs.forEach(function (spec) {
+        var aggToken = spec.aggToken, aggCol = spec.aggCol;
+        var value;
+        if (aggToken === "count()") value = group.length;
+        else if (aggToken === "avg") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0) / group.length;
+        else if (aggToken === "sum") value = group.reduce(function (s, r) { return s + Number(r[aggCol]); }, 0);
+        else if (aggToken === "max") value = Math.max.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+        else if (aggToken === "min") value = Math.min.apply(null, group.map(function (r) { return Number(r[aggCol]); }));
+        out[aggToken === "count()" ? "count_" : aggToken + "_" + aggCol] = value;
+      });
+      return out;
+    });
+  }
+
+  function kustoApplyTopOrSort(rows, clause, isTop) {
+    var m = isTop
+      ? clause.match(/^(\d+)\s+by\s+(\w+)(\s+asc|\s+desc)?$/)
+      : clause.match(/^(\w+)(\s+asc|\s+desc)?$/);
+    if (!m) throw new Error((isTop ? "top" : "sort by") + " 문법을 해석할 수 없습니다: " + clause);
+    var col = isTop ? m[2] : m[1];
+    var dir = (isTop ? m[3] : m[2]) || " desc";
+    var sorted = rows.slice().sort(function (a, b) {
+      if (a[col] < b[col]) return dir.indexOf("asc") !== -1 ? -1 : 1;
+      if (a[col] > b[col]) return dir.indexOf("asc") !== -1 ? 1 : -1;
+      return 0;
+    });
+    return isTop ? sorted.slice(0, Number(m[1])) : sorted;
+  }
+
+  function kustoApplyJoin(leftRows, clause) {
+    var m = clause.match(/^kind\s*=\s*(inner|innerunique|leftouter|rightouter|fullouter)\s*\(\s*(\w+)\s*\)\s+on\s+(.+)$/);
+    if (!m) throw new Error("join 문법을 해석할 수 없습니다: " + clause);
+    var kind = m[1], rightTableName = m[2], onClause = m[3].trim();
+    var rightTable = KUSTO_TABLES[rightTableName];
+    if (!rightTable) throw new Error("알 수 없는 테이블: " + rightTableName);
+    var rightRows = rightTable.slice();
+    var onMatch = onClause.match(/^\$left\.(\w+)\s*==\s*\$right\.(\w+)$/);
+    var leftKey = onMatch ? onMatch[1] : onClause;
+    var rightKey = onMatch ? onMatch[2] : onClause;
+    var leftCols = leftRows.length ? Object.keys(leftRows[0]) : [];
+    var rightCols = rightRows.length ? Object.keys(rightRows[0]) : [];
+    function mergeRow(l, r) {
+      var out = {};
+      leftCols.forEach(function (c) { out[c] = l ? l[c] : null; });
+      rightCols.forEach(function (c) {
+        if (c === rightKey && leftCols.indexOf(leftKey) !== -1) return;
+        var outKey = leftCols.indexOf(c) !== -1 ? c + "1" : c;
+        out[outKey] = r ? r[c] : null;
+      });
+      return out;
+    }
+    var rightByKey = {};
+    rightRows.forEach(function (r) {
+      var k = r[rightKey];
+      if (!rightByKey[k]) rightByKey[k] = [];
+      rightByKey[k].push(r);
+    });
+    var matchedRightKeys = {};
+    var result = [];
+    leftRows.forEach(function (l) {
+      var matches = rightByKey[l[leftKey]] || [];
+      if (matches.length) {
+        matches.forEach(function (r) { matchedRightKeys[r[rightKey]] = true; result.push(mergeRow(l, r)); });
+      } else if (kind === "leftouter" || kind === "fullouter") {
+        result.push(mergeRow(l, null));
+      }
+    });
+    if (kind === "rightouter" || kind === "fullouter") {
+      rightRows.forEach(function (r) {
+        if (!matchedRightKeys[r[rightKey]]) result.push(mergeRow(null, r));
+      });
+    }
+    return result;
+  }
+
+  var KUSTO_STAGE_HANDLERS = {
+    where: function (rows, clause) { return kustoApplyWhere(rows, clause); },
+    project: function (rows, clause) { return kustoApplyProject(rows, clause); },
+    summarize: function (rows, clause) { return kustoApplySummarize(rows, clause); },
+    top: function (rows, clause) { return kustoApplyTopOrSort(rows, clause, true); },
+    sort: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
+    order: function (rows, clause) { return kustoApplyTopOrSort(rows, clause.replace(/^by\s+/, ""), false); },
+    take: function (rows, clause) { var n = Number(clause.trim()); if (isNaN(n)) throw new Error("숫자가 아닙니다: " + clause.trim()); return rows.slice(0, n); },
+    limit: function (rows, clause) { var n = Number(clause.trim()); if (isNaN(n)) throw new Error("숫자가 아닙니다: " + clause.trim()); return rows.slice(0, n); },
+    join: function (rows, clause) { return kustoApplyJoin(rows, clause); }
+  };
+
+  var KUSTO_NO_COLCHECK_OPS = { join: true, summarize: true };
+
+  function runKustoQuery2(queryText) {
+    var text = (queryText || "").trim();
+    if (!text) return { error: true, message: "쿼리가 비어 있습니다." };
+    var letRe = /^let\s+(\w+)\s*=\s*(.+?);\s*/;
+    var letMatch, bindings = {};
+    while ((letMatch = text.match(letRe))) {
+      bindings[letMatch[1]] = letMatch[2].trim();
+      text = text.slice(letMatch[0].length);
+    }
+    Object.keys(bindings).forEach(function (name) {
+      text = text.split(new RegExp("\\b" + name + "\\b", "g")).join(bindings[name]);
+    });
+    var stages = text.split("\n").join(" ").split("|").map(function (s) { return s.trim(); }).filter(Boolean);
+    var tableName = stages.shift();
+    if (!KUSTO_TABLES[tableName]) {
+      return { error: true, stageIndex: 0, message: "알 수 없는 테이블: " + tableName + " (지원 테이블: " + Object.keys(KUSTO_TABLES).join(", ") + ")" };
+    }
+    var rows = KUSTO_TABLES[tableName].slice();
+    var trace = [{ stage: tableName, resultCount: rows.length }];
+    var chartType = null;
+    var currentColumns = rows.length ? Object.keys(rows[0]) : [];
+
+    for (var i = 0; i < stages.length; i++) {
+      var stage = stages[i];
+      var opMatch = stage.match(/^([\w-]+)\s*([\s\S]*)$/);
+      var op = opMatch ? opMatch[1] : "";
+      var clause = opMatch ? opMatch[2] : "";
+      if (op === "render") {
+        if (i !== stages.length - 1) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: render는 파이프라인의 마지막 스테이지에서만 사용할 수 있습니다", trace: trace };
+        }
+        var renderMatch = clause.trim().match(/^(timechart|barchart|columnchart|piechart)/);
+        chartType = renderMatch ? renderMatch[1] : null;
+        if (!renderMatch) return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: 지원하지 않는 render 유형입니다 (지원: timechart/barchart/columnchart/piechart)", trace: trace };
+        continue;
+      }
+      var handler = KUSTO_STAGE_HANDLERS[op];
+      if (!handler) {
+        return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지에서 실패: 지원하지 않는 연산자 `" + op + "` (이 시뮬레이터의 화이트리스트 밖입니다. 실제 Kusto에서는 지원될 수 있습니다)", trace: trace };
+      }
+      if (currentColumns && op === "where") {
+        var refs = clause.split(/\s+and\s+/i).map(function (c) {
+          var u = c.match(/^(?:isnull|isnotempty)\((\w+)\)$/);
+          if (u) return u[1];
+          var mm = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)/);
+          return mm ? mm[1] : null;
+        }).filter(Boolean);
+        var badCols = refs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
+        if (badCols.length) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+        }
+      }
+      if (currentColumns && op === "project") {
+        var projRefs = clause.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+        var badProjCols = projRefs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
+        if (badProjCols.length) {
+          return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badProjCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+        }
+      }
+      if (currentColumns && op === "summarize") {
+        var sumMatch = clause.match(/^(.+?)\s+by\s+(.+)$/);
+        if (sumMatch) {
+          var sumRefs = [];
+          sumMatch[1].split(",").forEach(function (part) {
+            var spec = part.trim().match(/^(count\(\)|avg|sum|max|min)\(?(\w+)?\)?$/);
+            if (spec && spec[2]) sumRefs.push(spec[2]);
+          });
+          var sumByClause = sumMatch[2].trim();
+          var sumByBin = sumByClause.match(/^bin\(\s*(\w+)\s*,\s*(\d+)(m|h|s)\s*\)$/);
+          sumRefs.push(sumByBin ? sumByBin[1] : sumByClause);
+          var badSumCols = sumRefs.filter(function (c) { return currentColumns.indexOf(c) === -1; });
+          if (badSumCols.length) {
+            return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: 존재하지 않는 컬럼 `" + badSumCols.join(", ") + "` (사용 가능한 컬럼: " + currentColumns.join(", ") + ")", trace: trace };
+          }
+        }
+      }
+      try {
+        rows = handler(rows, clause);
+      } catch (e) {
+        return { error: true, stageIndex: i + 1, message: (i + 1) + "번째 스테이지(`" + op + "`)에서 실패: " + e.message, trace: trace };
+      }
+      currentColumns = KUSTO_NO_COLCHECK_OPS[op] ? null : (op === "project" ? clause.split(",").map(function (s) { return s.trim(); }) : currentColumns);
+      trace.push({ stage: op, resultCount: rows.length });
+    }
+    var columns = rows.length ? Object.keys(rows[0]) : [];
+    return { error: false, columns: columns, rows: rows, trace: trace, chartType: chartType };
+  }
+
+  var CHART_COLORS = ["#3260CC", "#D97706", "#059669", "#DC2626"];
+
+  function pickNumericCols(columns, rows) {
+    if (!rows.length) return [];
+    return columns.filter(function (c) {
+      return typeof rows[0][c] === "number";
+    });
+  }
+
+  function renderChart(result, opts) {
+    opts = opts || {};
+    if (result.error) return "";
+    if (!result.rows.length) return '<p class="empty-hint">결과 0건 — 차트를 그릴 데이터가 없습니다.</p>';
+    var columns = result.columns;
+    var categoryCol = columns[0];
+    var numericCols = (opts.seriesCols || pickNumericCols(columns, result.rows)).filter(function (c) { return columns.indexOf(c) !== -1; });
+    if (!numericCols.length) return '<p class="empty-hint">차트로 표현할 숫자 컬럼이 없습니다.</p>';
+    if (!result.chartType) return "";
+    var rows = result.rows;
+    var w = 640, h = 280, pad = 40;
+
+    if (result.chartType === "timechart") {
+      var xs = rows.map(function (r) { return new Date(r[categoryCol]).getTime(); });
+      var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs) || minX + 1;
+      var seriesSvg = numericCols.map(function (col, si) {
+        var vals = rows.map(function (r) { return Number(r[col]); });
+        var maxY = Math.max.apply(null, vals) || 1;
+        var pts = rows.map(function (r, i) {
+          var x = pad + (xs[i] - minX) / (maxX - minX || 1) * (w - 2 * pad);
+          var y = h - pad - (Number(r[col]) / maxY) * (h - 2 * pad);
+          return x.toFixed(1) + "," + y.toFixed(1);
+        }).join(" ");
+        return '<polyline points="' + pts + '" fill="none" stroke="' + CHART_COLORS[si % CHART_COLORS.length] + '" stroke-width="2"/>';
+      }).join("");
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + seriesSvg + '</svg>';
+    }
+
+    if (result.chartType === "piechart") {
+      var col0 = numericCols[0];
+      var total = rows.reduce(function (s, r) { return s + Number(r[col0]); }, 0) || 1;
+      var cx = 120, cy = 120, r = 100, angle = -Math.PI / 2;
+      var slices = rows.map(function (row, i) {
+        var frac = Number(row[col0]) / total;
+        var start = angle;
+        angle += frac * 2 * Math.PI;
+        var x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+        var x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle);
+        var large = frac > 0.5 ? 1 : 0;
+        var d = "M" + cx + "," + cy + " L" + x1.toFixed(1) + "," + y1.toFixed(1) + " A" + r + "," + r + " 0 " + large + " 1 " + x2.toFixed(1) + "," + y2.toFixed(1) + " Z";
+        return '<path d="' + d + '" fill="' + CHART_COLORS[i % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + ": " + row[col0]) + '</title></path>';
+      }).join("");
+      return '<svg viewBox="0 0 240 240" width="280">' + slices + '</svg>';
+    }
+
+    // barchart(가로) / columnchart(세로)
+    var isColumn = result.chartType === "columnchart";
+    var allVals = [];
+    numericCols.forEach(function (c) { rows.forEach(function (r) { allVals.push(Number(r[c])); }); });
+    var maxV = Math.max.apply(null, allVals) || 1;
+    var n = rows.length, sCount = numericCols.length;
+    var bars = "";
+    if (isColumn) {
+      var colW = (w - 2 * pad) / n;
+      rows.forEach(function (row, i) {
+        numericCols.forEach(function (col, si) {
+          var bw = colW / sCount - 4;
+          var bh = (Number(row[col]) / maxV) * (h - 2 * pad);
+          var x = pad + i * colW + si * (bw + 2);
+          var y = h - pad - bh;
+          bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
+        });
+      });
+    } else {
+      var rowH = (h - 2 * pad) / n;
+      rows.forEach(function (row, i) {
+        numericCols.forEach(function (col, si) {
+          var bh2 = rowH / sCount - 4;
+          var bw2 = (Number(row[col]) / maxV) * (w - 2 * pad);
+          var y2 = pad + i * rowH + si * (bh2 + 2);
+          bars += '<rect x="' + pad + '" y="' + y2.toFixed(1) + '" width="' + bw2.toFixed(1) + '" height="' + bh2.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
+        });
+      });
+    }
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + bars + '</svg>';
+  }
+
+  var KQL_EXAMPLES = [
+    { id: "A1", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "게이트웨이 로그에서 5분 단위로 요청 수 추이를 타임차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { id: "A2", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "API(ApiId)별 요청 수를 세로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by ApiId\n| render columnchart" },
+    { id: "A3", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "응답코드(ResponseCode)별 건수 분포를 파이차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize count() by ResponseCode\n| render piechart" },
+    { id: "A4", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "처리시간(TotalTime)이 가장 긴 5건을 ApiId/TotalTime만 남겨 가로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| project ApiId, TotalTime\n| top 5 by TotalTime desc\n| render barchart" },
+    { id: "A5", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "API별 평균 처리시간(TotalTime)을 세로 막대 차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| summarize avg(TotalTime) by ApiId\n| render columnchart" },
+    { id: "A6", group: "single", tables: ["AppRequests"], prompt: "백엔드 요청의 성공/실패(Success) 비율을 파이차트로 그리세요.",
+      answer: "AppRequests\n| summarize count() by Success\n| render piechart" },
+    { id: "A7", group: "single", tables: ["AppRequests"], prompt: "백엔드 서비스(AppRoleName)별 평균 응답시간(DurationMs)을 세로 막대 차트로 그리세요.",
+      answer: "AppRequests\n| summarize avg(DurationMs) by AppRoleName\n| render columnchart" },
+    { id: "A8", group: "single", tables: ["AppDependencies"], prompt: "의존성 타입(DependencyType)별 호출 건수를 파이차트로 그리세요.",
+      answer: "AppDependencies\n| summarize count() by DependencyType\n| render piechart" },
+    { id: "A9", group: "single", tables: ["AppDependencies"], prompt: "Target별 평균 소요시간(DurationMs)을 느린 순으로 가로 막대 차트로 그리세요.",
+      answer: "AppDependencies\n| summarize avg(DurationMs) by Target\n| sort by avg_DurationMs desc\n| render barchart" },
+    { id: "A10", group: "single", tables: ["ApiManagementGatewayLogs"], prompt: "실패한(IsRequestSuccess=false) 요청만 5분 단위 추이로 타임차트를 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| where IsRequestSuccess == false\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { id: "B1", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "게이트웨이는 성공(IsRequestSuccess=true)으로 기록했지만 백엔드는 실패(Success=false)로 기록한 요청을 찾으세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| where IsRequestSuccess == true and Success == false" },
+    { id: "B2", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "API별 게이트웨이 오버헤드(TotalTime 평균 − DurationMs 평균 개념)를 확인할 수 있도록, join 후 ApiId/TotalTime/DurationMs만 남겨 상위 5건을 TotalTime 기준으로 보여주세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| project ApiId, TotalTime, DurationMs\n| top 5 by TotalTime desc" },
+    { id: "B3", group: "join2", tables: ["AppRequests", "AppDependencies"], prompt: "백엔드 요청과 DB 호출을 leftouter join으로 연결해(캐시 히트로 DB 미호출인 행도 포함) Name/DurationMs/DurationMs1(DB 소요시간)을 확인하세요.",
+      answer: "AppRequests\n| join kind=leftouter (AppDependencies) on OperationId\n| project Name, DurationMs, DurationMs1" },
+    { id: "B4", group: "join2", tables: ["ApiManagementGatewayLogs", "AppRequests"], prompt: "게이트웨이에는 기록됐지만 백엔드에는 도달하지 못한(차단된) 요청만 leftouter join + isnull로 찾으세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=leftouter (AppRequests) on OperationId\n| where isnull(Name)" },
+    { id: "B5", group: "join2", tables: ["AppDependencies", "AppRequests"], prompt: "APIM 게이트웨이를 거치지 않고 직접 실행된 백그라운드 DB 호출(어느 백엔드 요청과도 매칭되지 않는 행)을 rightouter join으로 찾으세요.",
+      answer: "AppRequests\n| join kind=rightouter (AppDependencies) on OperationId\n| where isnull(Name)" },
+    { id: "C1", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 테이블을 모두 OperationId로 join해 API별 게이트웨이(TotalTime)/백엔드(DurationMs)/DB(DurationMs1) 평균 소요시간을 함께 보여주는 표를 만드세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| summarize avg(TotalTime), avg(DurationMs), avg(DurationMs1) by ApiId",
+      seriesCols: ["avg_TotalTime", "avg_DurationMs"] },
+    { id: "C2", group: "join3", tables: ["ApiManagementGatewayLogs", "AppRequests", "AppDependencies"], prompt: "세 계층(게이트웨이/백엔드/DB) 모두 성공한 완전 성공 요청만 남겨 API별 건수를 파이차트로 그리세요.",
+      answer: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| where IsRequestSuccess == true and Success == true and Success1 == true\n| summarize count() by ApiId\n| render piechart" }
+  ];
+
+  function renderExampleCard(ex) {
+    var saved = state.answers[ex.id] || {};
+    var revealed = !!saved.revealed;
+    var badges = ex.tables.map(function (t) { return "<span>" + escapeHtml(t) + "</span>"; }).join("");
+    var resultHtml = "";
+    if (saved.lastResult) {
+      resultHtml = saved.lastResult.error
+        ? '<div class="kql-error">' + escapeHtml(saved.lastResult.message) + '</div>'
+        : renderResultTable(saved.lastResult) + renderChart(saved.lastResult, { seriesCols: ex.seriesCols });
+    }
+    var answerHtml = "";
+    if (revealed) {
+      var answerResult = runKustoQuery2(ex.answer);
+      answerHtml = answerResult.error
+        ? '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
+          '<div class="kql-error">' + escapeHtml(answerResult.message) + '</div></div>'
+        : '<div class="workbook-model-answer"><strong>정답 쿼리</strong><pre>' + escapeHtml(ex.answer) + '</pre>' +
+          renderResultTable(answerResult) + renderChart(answerResult, { seriesCols: ex.seriesCols }) + '</div>';
+    }
+    return '<div class="example-card" data-example-id="' + ex.id + '">' +
+      '<div class="example-badges">' + badges + '</div>' +
+      '<p><strong>' + ex.id + '.</strong> ' + escapeHtml(ex.prompt) + '</p>' +
+      '<textarea class="kql-editor" data-role="editor">' + escapeHtml(saved.userQuery || "") + '</textarea>' +
+      '<div style="margin-top:8px;display:flex;gap:8px;">' +
+      '<button class="btn primary" data-action="run">내 쿼리 실행</button>' +
+      '<button class="btn" data-action="reveal">' + (revealed ? "정답 접기" : "정답 보기") + '</button>' +
+      '</div>' + resultHtml + answerHtml + '</div>';
+  }
+
+  function renderResultTable(result) {
+    if (result.error || !result.rows.length) return "";
+    var cols = result.columns;
+    var head = cols.map(function (c) { return "<th>" + escapeHtml(c) + "</th>"; }).join("");
+    var body = result.rows.map(function (r) {
+      return "<tr>" + cols.map(function (c) { return "<td>" + escapeHtml(r[c]) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    return '<table class="kql-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
+  function renderExamplesTab() {
+    var groupLabels = { single: "단일 테이블 예제", join2: "2테이블 join 예제", join3: "3테이블 조합 예제" };
+    var html = "";
+    ["single", "join2", "join3"].forEach(function (g) {
+      html += "<h2>" + groupLabels[g] + "</h2>";
+      html += KQL_EXAMPLES.filter(function (ex) { return ex.group === g; }).map(renderExampleCard).join("");
+    });
+    return html;
+  }
+
+  function storageAvailable() {
+    try { var k = "__t"; localStorage.setItem(k, "1"); localStorage.removeItem(k); return true; } catch (e) { return false; }
+  }
+  var HAS_STORAGE = storageAvailable();
+  function loadState() {
+    var raw = HAS_STORAGE ? localStorage.getItem("kqlJoinLabState") : MEMORY_STORE.kqlJoinLabState;
+    if (!HAS_STORAGE) document.getElementById("storageBanner").classList.add("show");
+    if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+    return { activeTab: "tutorial", answers: {}, tutorialStep: 0 };
+  }
+  var state = loadState();
+  function persist() {
+    var raw = JSON.stringify(state);
+    if (HAS_STORAGE) { try { localStorage.setItem("kqlJoinLabState", raw); } catch (e) {} }
+    else { MEMORY_STORE.kqlJoinLabState = raw; }
+  }
+  function escapeHtml(str) {
+    return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function setActiveTab(tab) {
+    state.activeTab = tab; persist();
+    document.querySelectorAll("#kqlLabTabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === tab); });
+    render();
+  }
+  document.getElementById("kqlLabTabs").addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-tab]");
+    if (btn) setActiveTab(btn.getAttribute("data-tab"));
+  });
+  function resetAllProgress() {
+    var ok = window.confirm("튜토리얼 진행 단계와 예제 17개에 입력한 내 쿼리·정답 펼침 상태가 모두 초기화됩니다. 계속할까요?");
+    if (!ok) return;
+    state = { activeTab: "tutorial", answers: {}, tutorialStep: 0 };
+    persist();
+    document.querySelectorAll("#kqlLabTabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === state.activeTab); });
+    render();
+  }
+  document.getElementById("kqlLabResetBtn").addEventListener("click", resetAllProgress);
+  var KQL_TUTORIAL_STEPS = [
+    { title: "1. 왜 테이블이 3개인가", body: "게이트웨이(ApiManagementGatewayLogs) → 백엔드(AppRequests) → DB(AppDependencies) 순서로 요청이 흘러갑니다. 게이트웨이 21건 중 5건(OP-1003/1004/1007/1011/1012)은 인증/속도제한으로 차단되어 백엔드에 도달하지 못하고, 나머지 16건만 백엔드에 도달합니다. 이 16건 중 2건은 캐시 히트라 DB를 호출하지 않고, 1건(OP-1021)은 백엔드 자체 로직에서 실패로 기록되어 역시 DB를 호출하지 않아 13건만 DB를 호출합니다. 여기에 APIM 게이트웨이를 거치지 않은 백그라운드 작업 2건(OP-BG01/OP-BG02)이 DB 테이블에 별도로 추가되어, 세 테이블의 행 수는 21 → 16 → 15(13건 상관 + 2건 별도 백그라운드 작업)로 자연스럽게 달라집니다. 아래 쿼리로 게이트웨이 응답코드 분포를 먼저 확인해 보세요.",
+      query: "ApiManagementGatewayLogs\n| summarize count() by ResponseCode\n| render piechart" },
+    { title: "2. 단일 테이블 기초: where / project", body: "`where`로 행을 거르고 `project`로 필요한 컬럼만 남깁니다. 아래는 orders-api의 요청만 골라 URL과 처리시간만 남기는 예시입니다.",
+      query: "ApiManagementGatewayLogs\n| where ApiId == \"orders-api\"\n| project Url, TotalTime" },
+    { title: "3. 집계와 시간 버킷: summarize by bin()", body: "`summarize`는 그룹별 집계를, `bin(컬럼, 간격)`은 시간을 일정 간격으로 묶습니다. 두 개를 합치면 시계열 차트의 재료가 됩니다.",
+      query: "ApiManagementGatewayLogs\n| summarize count() by bin(TimeGenerated, 5m)\n| render timechart" },
+    { title: "4. 순위와 정렬: top / sort by", body: "`top N by 컬럼`은 상위 N건을, `sort by 컬럼 desc`는 전체 정렬을 반환합니다. 느린 요청을 찾을 때 자주 씁니다.",
+      query: "ApiManagementGatewayLogs\n| project ApiId, TotalTime\n| top 5 by TotalTime desc\n| render barchart" },
+    { title: "5. join 문법: 종류와 on 절", body: "`join kind=inner (오른쪽테이블) on 컬럼`은 두 테이블에서 컬럼 값이 같은 행끼리 합칩니다. 컬럼명이 다르면 `on $left.A == $right.B` 형태를 씁니다. kind는 4가지: inner(양쪽 다 있는 행만), leftouter(왼쪽 전부 + 매칭된 오른쪽), rightouter(오른쪽 전부 + 매칭된 왼쪽), fullouter(양쪽 전부, 매칭 안 된 쪽은 null). 아래는 게이트웨이와 백엔드를 OperationId로 합치는 예시입니다.",
+      query: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| project ApiId, TotalTime, DurationMs" },
+    { title: "6. 실전 조합: 3테이블 대시보드", body: "join을 두 번 이어 붙이면 3개 테이블을 모두 조합할 수 있습니다. 이렇게 만든 결과를 여러 차트로 나눠 한 화면에 배치하는 것이 Azure Workbook 대시보드의 기본 패턴입니다 — 워크북은 이런 쿼리 결과를 텍스트/파라미터 셀과 함께 하나의 문서로 묶어 보여주는 도구입니다.",
+      query: "ApiManagementGatewayLogs\n| join kind=inner (AppRequests) on OperationId\n| join kind=inner (AppDependencies) on OperationId\n| summarize avg(TotalTime), avg(DurationMs) by ApiId\n| render columnchart",
+      chartOpts: { seriesCols: ["avg_TotalTime", "avg_DurationMs"] } }
+  ];
+
+  function renderTutorialTab() {
+    var i = state.tutorialStep || 0;
+    var step = KQL_TUTORIAL_STEPS[i];
+    var result = runKustoQuery2(step.query);
+    var resultHtml = result.error
+      ? '<div class="kql-error">' + escapeHtml(result.message) + '</div>'
+      : renderResultTable(result) + renderChart(result, step.chartOpts);
+    return '<div class="example-card">' +
+      '<p style="color:var(--text-dim);font-size:var(--fs-xs)">' + (i + 1) + " / " + KQL_TUTORIAL_STEPS.length + '</p>' +
+      '<h2>' + escapeHtml(step.title) + '</h2>' +
+      '<p>' + escapeHtml(step.body) + '</p>' +
+      '<textarea class="kql-editor" readonly>' + escapeHtml(step.query) + '</textarea>' +
+      resultHtml +
+      '<div style="margin-top:8px;display:flex;gap:8px;">' +
+      '<button class="btn" data-tutorial-action="prev"' + (i === 0 ? " disabled" : "") + '>이전</button>' +
+      '<button class="btn primary" data-tutorial-action="next"' + (i === KQL_TUTORIAL_STEPS.length - 1 ? " disabled" : "") + '>다음</button>' +
+      '</div></div>';
+  }
+
+  function render() {
+    var app = document.getElementById("kqlLabApp");
+    if (state.activeTab === "tutorial") app.innerHTML = renderTutorialTab();
+    else app.innerHTML = renderExamplesTab();
+  }
+
+  document.getElementById("kqlLabApp").addEventListener("click", function (e) {
+    var card = e.target.closest("[data-example-id]");
+    if (card) {
+      var id = card.getAttribute("data-example-id");
+      var btn = e.target.closest("button");
+      var action = btn && btn.getAttribute("data-action");
+      if (action === "run") {
+        var editor = card.querySelector("[data-role='editor']");
+        state.answers[id] = state.answers[id] || {};
+        state.answers[id].userQuery = editor.value;
+        state.answers[id].lastResult = runKustoQuery2(editor.value);
+        persist();
+        render();
+      } else if (action === "reveal") {
+        state.answers[id] = state.answers[id] || {};
+        state.answers[id].revealed = !state.answers[id].revealed;
+        persist();
+        render();
+      }
+      return;
+    }
+    var tstep = e.target.closest("[data-tutorial-action]");
+    if (tstep && KQL_TUTORIAL_STEPS.length) {
+      var dir = tstep.getAttribute("data-tutorial-action");
+      state.tutorialStep = Math.max(0, Math.min(KQL_TUTORIAL_STEPS.length - 1, (state.tutorialStep || 0) + (dir === "next" ? 1 : -1)));
+      persist();
+      render();
+    }
+  });
+
+  document.getElementById("kqlLabApp").addEventListener("input", function (e) {
+    var card = e.target.closest("[data-example-id]");
+    if (card && e.target.getAttribute("data-role") === "editor") {
+      var id = card.getAttribute("data-example-id");
+      state.answers[id] = state.answers[id] || {};
+      state.answers[id].userQuery = e.target.value;
+      persist();
+    }
+  });
+  document.querySelectorAll("#kqlLabTabs button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === state.activeTab); });
+  render();
 })();
 </script>

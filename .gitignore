@@ -3,3 +3,5 @@
 *.stackdump
 .claude/
 CLAUDE.md
+
+.vercel

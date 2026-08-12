@@ -651,7 +651,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   </div>
 </div>
 
-<button class="btn theme-toggle" id="themeToggle" type="button" aria-label="테마 전환">테마</button>
+<button class="btn theme-toggle" id="themeToggle" type="button" aria-label="테마 전환"></button>
 
 <script>
 (function () {
@@ -702,10 +702,15 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
 
   /* ---------------- theme ---------------- */
   var root = document.documentElement;
+  var THEME_LABEL = { auto: "자동", dark: "다크", light: "라이트" };
   function applyTheme() {
     if (state.theme === "dark") root.setAttribute("data-theme", "dark");
     else if (state.theme === "light") root.setAttribute("data-theme", "light");
     else root.removeAttribute("data-theme");
+    var isDark = state.theme === "dark" || (state.theme === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var themeBtn = document.getElementById("themeToggle");
+    themeBtn.textContent = isDark ? "🌙" : "☀️";
+    themeBtn.setAttribute("aria-label", "테마 전환 (현재: " + THEME_LABEL[state.theme] + ")");
   }
   applyTheme();
   document.getElementById("themeToggle").addEventListener("click", function () {

@@ -1625,7 +1625,31 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
       { name: "관리 ID(Managed Identity)", code: "Managed Identity", url: "https://learn.microsoft.com/ko-kr/azure/active-directory/managed-identities-azure-resources/overview",
         easy: "Azure 리소스끼리 비밀번호 없이 서로 인증할 수 있게 해주는 자동 발급 신원입니다. APIM이 Key Vault나 Storage에 접근할 때 별도 자격 증명을 코드에 넣지 않고 이 관리 ID로 인증합니다. --enable-managed-identity 플래그는 Consumption 티어 전용이며, 다른 티어(Developer/Basic/Standard/Premium 등)에서는 az apim update ... --set identity.type=SystemAssigned를 사용합니다.",
         when: "APIM/App Gateway가 Key Vault, Storage 같은 다른 Azure 리소스에 접근해야 할 때",
-        example: "az apim update --resource-group rg-migration --name my-apim --enable-managed-identity true" }
+        example: "az apim update --resource-group rg-migration --name my-apim --enable-managed-identity true" },
+      { name: "관리 그룹(Management Group)", code: "Management Group", url: "https://learn.microsoft.com/ko-kr/azure/governance/management-groups/overview",
+        easy: "관리 그룹은 여러 구독을 하나의 상위 계층으로 묶어서, 정책이나 RBAC 역할을 구독 여러 개에 한 번에 적용할 수 있게 해주는 컨테이너입니다. 예를 들어 '전사' 관리 그룹 아래에 '개발', '운영' 구독을 두면, 전사 수준에서 부여한 권한이나 정책이 두 구독에 모두 상속됩니다.",
+        when: "구독이 여러 개라서 정책·권한을 구독 단위가 아니라 조직 전체 단위로 관리하고 싶을 때",
+        example: "az account management-group create --name mg-migration --display-name \"Migration Group\" --parent mg-platform" },
+      { name: "RBAC 스코프 4단계", code: "RBAC Scope Hierarchy", url: "https://learn.microsoft.com/ko-kr/azure/role-based-access-control/scope-overview",
+        easy: "RBAC 역할은 관리 그룹 → 구독 → 리소스 그룹 → 리소스 순으로 점점 좁아지는 4단계 범위(scope) 중 원하는 위치에 할당할 수 있습니다. 상위 단계에서 부여한 역할은 하위 단계로 자동 상속되므로, 구독 수준에서 Reader를 주면 그 안의 모든 리소스 그룹·리소스에서도 읽기 권한이 생깁니다.",
+        when: "권한을 조직 전체/구독 전체/특정 프로젝트 중 어느 범위까지 적용할지 결정할 때",
+        example: "az role assignment create --assignee user@contoso.com --role Reader --scope \"/providers/Microsoft.Management/managementGroups/mg-migration\"\naz role assignment create --assignee user@contoso.com --role Reader --scope \"/subscriptions/{subscription-id}\"\naz role assignment create --assignee user@contoso.com --role Reader --scope \"/subscriptions/{subscription-id}/resourceGroups/rg-migration\"" },
+      { name: "시스템 할당 vs 사용자 할당 관리 ID", code: "Managed Identity (System vs User Assigned)", url: "https://learn.microsoft.com/ko-kr/entra/identity/managed-identities-azure-resources/overview",
+        easy: "시스템 할당 관리 ID는 VM 같은 리소스를 만들 때 함께 생성되어 그 리소스와 생명주기를 공유합니다 — 리소스를 삭제하면 ID도 자동으로 같이 삭제됩니다. 사용자 할당 관리 ID는 독립된 리소스로 먼저 만들어두고 여러 VM·App Service에 나눠서 붙일 수 있어 공유가 가능합니다.",
+        when: "여러 리소스가 동일한 권한 세트를 재사용해야 하거나, 리소스 재활용이 잦아도 권한을 유지하고 싶을 때",
+        example: "az identity create --name id-migration-shared --resource-group rg-migration" },
+      { name: "Azure Policy 기초", code: "Azure Policy", url: "https://learn.microsoft.com/ko-kr/azure/governance/policy/overview",
+        easy: "Azure Policy는 리소스가 조직의 규칙을 지키는지 강제하거나 감사하는 기능입니다(예: '특정 지역에만 리소스 생성 허용'). RBAC이 '누가 무엇을 할 수 있는가'를 정한다면, Policy는 '리소스 상태가 어떤 조건을 만족해야 하는가'를 정합니다 — 권한이 있어도 정책을 어기는 리소스는 생성이 거부될 수 있습니다.",
+        when: "팀원 권한과 무관하게 위치·SKU·필수 태그 같은 규칙을 조직 전체에 강제하고 싶을 때",
+        example: "az policy assignment create --name allow-korea-only --policy {policyName} --scope \"/subscriptions/{subscription-id}/resourceGroups/rg-migration\" --params \"{ 'allowedLocations': { 'value': ['koreacentral'] } }\"" },
+      { name: "내장 역할 vs 사용자 지정 역할", code: "Built-in vs Custom Role", url: "https://learn.microsoft.com/ko-kr/azure/role-based-access-control/custom-roles",
+        easy: "Contributor·Reader·Owner 같은 내장 역할은 Azure가 미리 만들어둔 표준 권한 세트로 대부분의 상황에 바로 쓸 수 있습니다. 내장 역할로 표현할 수 없는 세밀한 조합(예: 'VM 재시작은 되지만 삭제는 안 됨')이 필요하면 Actions/NotActions를 직접 조합한 사용자 지정 역할을 JSON으로 정의해서 만듭니다.",
+        when: "내장 역할의 권한 조합이 너무 넓거나 좁아서 딱 맞는 역할이 없을 때",
+        example: "az role definition create --role-definition '{ \"Name\": \"VM Operator\", \"Description\": \"Can monitor and restart virtual machines.\", \"Actions\": [\"Microsoft.Compute/*/read\", \"Microsoft.Compute/virtualMachines/restart/action\"], \"NotActions\": [], \"AssignableScopes\": [\"/subscriptions/{subscription-id}\"] }'" },
+      { name: "태그(Tags)", code: "Tags", url: "https://learn.microsoft.com/ko-kr/azure/azure-resource-manager/management/tag-resources",
+        easy: "태그는 리소스·리소스 그룹·구독에 key=value 형태의 메타데이터를 붙여서 분류하거나 비용을 추적하는 기능입니다(예: environment=prod, costcenter=teamA). 리소스 그룹에 붙인 태그가 그 안의 리소스에 자동으로 상속되지는 않으므로 리소스마다 따로 붙이거나 정책으로 강제해야 합니다.",
+        when: "비용 보고서에서 팀/환경별로 리소스를 묶어서 보고 싶을 때",
+        example: "az resource tag --tags environment=prod costcenter=teamA --resource-group rg-migration --name apim-migration --resource-type \"Microsoft.ApiManagement/service\"" }
     ] }
   ];
 

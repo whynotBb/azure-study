@@ -2125,6 +2125,16 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     return { ok: true, doc: doc };
   }
 
+  function parseReturnResponseBody(el, defaultCode) {
+    var statusEl = el.querySelector("set-status");
+    var bodyEl = el.querySelector("set-body");
+    var code = statusEl ? parseInt(statusEl.getAttribute("code"), 10) : defaultCode;
+    var bodyText = bodyEl ? bodyEl.textContent : "";
+    var body;
+    try { body = JSON.parse(bodyText); } catch (e) { body = { message: bodyText }; }
+    return { code: code, body: body };
+  }
+
   function runApimSection(elements, headers, trace, route, input, isInbound) {
     for (var i = 0; i < elements.length; i++) {
       var el = elements[i];
@@ -2208,11 +2218,9 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
         headers[hName] = valueEl ? valueEl.textContent : "";
         trace.push({ policy: "set-header", effect: hName + " = " + headers[hName] + (isInbound ? "" : " (outbound)") });
       } else if (tag === "return-response") {
-        var statusEl = el.querySelector("set-status");
-        var bodyEl = el.querySelector("set-body");
-        var code = statusEl ? parseInt(statusEl.getAttribute("code"), 10) : 200;
-        trace.push({ policy: "return-response", effect: "즉시 응답 반환 (" + code + ")" });
-        return { blocked: true, statusCode: code, body: { message: bodyEl ? bodyEl.textContent : "" } };
+        var rr = parseReturnResponseBody(el, 200);
+        trace.push({ policy: "return-response", effect: "즉시 응답 반환 (" + rr.code + ")" });
+        return { blocked: true, statusCode: rr.code, body: rr.body };
       }
     }
     return { blocked: false };
@@ -2276,14 +2284,9 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       var tag = el.tagName;
       if (tag === "base") continue;
       if (tag === "return-response") {
-        var statusEl = el.querySelector("set-status");
-        var bodyEl = el.querySelector("set-body");
-        var code = statusEl ? parseInt(statusEl.getAttribute("code"), 10) : failStatus;
-        trace.push({ policy: "on-error/return-response", effect: "커스텀 오류 응답 반환 (" + code + ")" });
-        var bodyText = bodyEl ? bodyEl.textContent : "";
-        var bodyParsed;
-        try { bodyParsed = JSON.parse(bodyText); } catch (e) { bodyParsed = { message: bodyText }; }
-        return { statusCode: code, body: bodyParsed };
+        var rr = parseReturnResponseBody(el, failStatus);
+        trace.push({ policy: "on-error/return-response", effect: "커스텀 오류 응답 반환 (" + rr.code + ")" });
+        return { statusCode: rr.code, body: rr.body };
       }
       trace.push({ policy: "on-error/" + tag, effect: "⚠ 이 학습 도구에서는 시뮬레이션 미지원 (구문은 유효)" });
     }

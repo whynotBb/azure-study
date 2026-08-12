@@ -2418,10 +2418,20 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     { TimeGenerated: "2026-08-06T09:09:25Z", ApiId: "orders-api", Method: "POST", Url: "/orders", ResponseCode: 200, BackendResponseCode: 200, IsRequestSuccess: true, TotalTime: 113, CallerIpAddress: "203.0.113.12" }
   ];
 
+  var SIMULATED_NOW = "2026-08-06T09:15:00Z";
+
+  function kustoAgoValue(amount, unit) {
+    var ms = amount * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : unit === "m" ? 60000 : 1000);
+    return new Date(new Date(SIMULATED_NOW).getTime() - ms).toISOString();
+  }
+
   function kustoParseLiteral(raw) {
     raw = raw.trim();
     if (raw === "true") return true;
     if (raw === "false") return false;
+    if (raw === "now()") return SIMULATED_NOW;
+    var agoMatch = raw.match(/^ago\(\s*(\d+)(s|m|h|d)\s*\)$/);
+    if (agoMatch) return kustoAgoValue(Number(agoMatch[1]), agoMatch[2]);
     if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
     var strMatch = raw.match(/^"(.*)"$/);
     if (strMatch) return strMatch[1];
@@ -2440,14 +2450,21 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     throw new Error("지원하지 않는 비교 연산자: " + op);
   }
 
+  var KUSTO_CAST_FUNCS = { toint: Number, tostring: String, todouble: Number, tolong: Number };
+
   function kustoApplyWhere(rows, clause) {
     var conditions = clause.split(/\s+and\s+/i).map(function (c) {
-      var m = c.match(/^(\w+)\s*(==|!=|>=|<=|>|<|!contains|contains)\s*(.+)$/);
+      var m = c.match(/^(?:(\w+)\((\w+)\)|(\w+))\s*(==|!=|>=|<=|>|<|!contains|contains)\s*(.+)$/);
       if (!m) throw new Error("조건을 해석할 수 없습니다: " + c);
-      return { col: m[1], op: m[2], val: kustoParseLiteral(m[3]) };
+      var fn = m[1], col = m[1] ? m[2] : m[3], op = m[4], val = m[5];
+      if (fn && !KUSTO_CAST_FUNCS[fn]) throw new Error("지원하지 않는 함수: " + fn + "()");
+      return { col: col, fn: fn ? KUSTO_CAST_FUNCS[fn] : null, op: op, val: kustoParseLiteral(val) };
     });
     return rows.filter(function (row) {
-      return conditions.every(function (c) { return kustoCompare(row[c.col], c.op, c.val); });
+      return conditions.every(function (c) {
+        var actual = c.fn ? c.fn(row[c.col]) : row[c.col];
+        return kustoCompare(actual, c.op, c.val);
+      });
     });
   }
 

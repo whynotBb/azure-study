@@ -676,7 +676,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: false, kqlgroup: false, datainfra: false, azuremonitor: false, lab: false } };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: false, kqlgroup: false, datainfra: false, azuremonitor: false, lab: false }, navCollapsedByDefaultApplied: true };
   }
   function loadState() {
     var raw = null;
@@ -684,7 +684,11 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
     if (!raw) return defaultState();
     try {
       var parsed = JSON.parse(raw);
-      return Object.assign(defaultState(), parsed);
+      var merged = Object.assign(defaultState(), parsed);
+      // 사이드바 기본 접힘 정책이 도입되기 전 저장된 navOpen(전부 true)이 남아있는 경우, 1회에 한해 새 기본값으로 되돌린다.
+      if (!parsed.navCollapsedByDefaultApplied) merged.navOpen = defaultState().navOpen;
+      merged.navCollapsedByDefaultApplied = true;
+      return merged;
     } catch (e) { return defaultState(); }
   }
 

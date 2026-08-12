@@ -585,7 +585,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       <div class="panel-head">
         <span class="eyebrow">11 · Local Test Lab</span>
         <h1>APIM Policy</h1>
-        <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 8개 정책(check-header, rate-limit, rate-limit-by-key, cors, set-header, rewrite-uri, ip-filter, return-response)과 backend 섹션의 retry, on-error 섹션의 return-response를 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다.</p>
+        <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 8개 정책(check-header, rate-limit, rate-limit-by-key, cors, set-header, rewrite-uri, ip-filter, return-response)과 backend 섹션의 retry, on-error 섹션의 return-response를 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다. rate-limit-by-key의 counter-key는 @(context.Request.IpAddress)만 지원하며, rate-limit 카운팅은 실제 classic 티어와 유사한 슬라이딩 윈도우 알고리즘으로 시뮬레이션합니다.</p>
       </div>
       <div id="labPolicyBody"></div>
     </section>
@@ -2236,14 +2236,18 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     }
 
     var forced = !!input.forceBackendFailure || timedOut;
-    if (!forced) return { failed: false };
+    if (!forced) {
+      if (retryEl) trace.push({ policy: "backend", effect: "백엔드 호출 성공" });
+      return { failed: false };
+    }
 
     if (!retryEl) {
       trace.push({ policy: "backend", effect: "백엔드 호출 실패 (" + failStatus + ")" });
       return { failed: true, statusCode: failStatus };
     }
 
-    var count = parseInt(retryEl.getAttribute("count"), 10) || 1;
+    var count = parseInt(retryEl.getAttribute("count"), 10);
+    if (isNaN(count)) count = 1;
     var interval = parseInt(retryEl.getAttribute("interval"), 10) || 0;
     var condition = retryEl.getAttribute("condition") || "";
     var condMatch = condition.match(/context\.Response\.StatusCode\s*==\s*(\d+)/);
@@ -2255,8 +2259,12 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     } else {
       trace.push({ policy: "retry", effect: "이 조건식은 시뮬레이션 대상이 아니며 항상 재시도합니다" });
     }
-    for (var r = 1; r <= count; r++) {
+    var displayedRetries = Math.min(count, 20);
+    for (var r = 1; r <= displayedRetries; r++) {
       trace.push({ policy: "retry", effect: "재시도 " + r + "/" + count + " (" + interval + "초 대기 후) — 여전히 " + failStatus });
+    }
+    if (count > displayedRetries) {
+      trace.push({ policy: "retry", effect: "(트레이스 표시는 최대 20회까지만 나열)" });
     }
     trace.push({ policy: "retry", effect: count + "회 재시도 소진 — 최종 실패" });
     return { failed: true, statusCode: failStatus };
@@ -2272,7 +2280,10 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
         var bodyEl = el.querySelector("set-body");
         var code = statusEl ? parseInt(statusEl.getAttribute("code"), 10) : failStatus;
         trace.push({ policy: "on-error/return-response", effect: "커스텀 오류 응답 반환 (" + code + ")" });
-        return { statusCode: code, body: { message: bodyEl ? bodyEl.textContent : "" } };
+        var bodyText = bodyEl ? bodyEl.textContent : "";
+        var bodyParsed;
+        try { bodyParsed = JSON.parse(bodyText); } catch (e) { bodyParsed = { message: bodyText }; }
+        return { statusCode: code, body: bodyParsed };
       }
       trace.push({ policy: "on-error/" + tag, effect: "⚠ 이 학습 도구에서는 시뮬레이션 미지원 (구문은 유효)" });
     }
@@ -2339,6 +2350,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       '<div class="lab-compare-grid" style="margin-top:var(--sp-4);"><div id="labApiTestKong" class="pcard"></div><div id="labApiTestApim" class="pcard"></div></div>';
 
     var selectedIdx = 0;
+    var forceFailChecked = false;
 
     function renderInputs() {
       var route = LAB_ROUTES[selectedIdx];
@@ -2353,9 +2365,12 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       if (route.inputs.length === 0) {
         html += '<span class="pwhen">이 라우트는 apikey/IP 입력이 필요 없습니다.</span>';
       }
-      html += '<label class="lab-check"><input type="checkbox" id="labInputForceFail"> 백엔드 강제 실패(503)</label>';
+      html += '<label class="lab-check"><input type="checkbox" id="labInputForceFail"' + (forceFailChecked ? " checked" : "") + '> 백엔드 강제 실패(503)</label>';
       html += "</div>";
       inputsBody.innerHTML = html;
+      document.getElementById("labInputForceFail").addEventListener("change", function () {
+        forceFailChecked = this.checked;
+      });
     }
 
     function currentInput() {
@@ -2628,7 +2643,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
   function kustoAgoValue(amount, unit) {
     var ms = amount * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : unit === "m" ? 60000 : 1000);
-    return new Date(new Date(SIMULATED_NOW).getTime() - ms).toISOString();
+    return new Date(new Date(SIMULATED_NOW).getTime() - ms).toISOString().replace(/\.000Z$/, "Z");
   }
 
   function kustoParseLiteral(raw) {
@@ -3672,7 +3687,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
   function kustoAgoValue(amount, unit) {
     var ms = amount * (unit === "d" ? 86400000 : unit === "h" ? 3600000 : unit === "m" ? 60000 : 1000);
-    return new Date(new Date(SIMULATED_NOW).getTime() - ms).toISOString();
+    return new Date(new Date(SIMULATED_NOW).getTime() - ms).toISOString().replace(/\.000Z$/, "Z");
   }
 
   function kustoParseLiteral(raw) {

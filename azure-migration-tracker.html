@@ -315,7 +315,8 @@
   .badge-ai { display: inline-block; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--accent-legacy); border: 1px solid var(--accent-legacy); border-radius: 999px; padding: 1px 7px; margin-left: var(--sp-2); }
   .goto-ref-btn { display: inline-flex; align-items: center; gap: 6px; margin-bottom: var(--sp-5); }
 
-  .theme-toggle { position: fixed; bottom: var(--sp-4); right: var(--sp-4); z-index: 20; }
+  .theme-toggle { position: fixed; bottom: var(--sp-4); right: var(--sp-4); z-index: 20; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .theme-toggle svg { width: 20px; height: 20px; }
   .lab-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
   @media (max-width: 720px) { .lab-compare-grid { grid-template-columns: 1fr; } }
   .lab-result-title { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
@@ -703,13 +704,15 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
   /* ---------------- theme ---------------- */
   var root = document.documentElement;
   var THEME_LABEL = { auto: "자동", dark: "다크", light: "라이트" };
+  var SUN_ICON = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>';
+  var MOON_ICON = '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>';
   function applyTheme() {
     if (state.theme === "dark") root.setAttribute("data-theme", "dark");
     else if (state.theme === "light") root.setAttribute("data-theme", "light");
     else root.removeAttribute("data-theme");
     var isDark = state.theme === "dark" || (state.theme === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     var themeBtn = document.getElementById("themeToggle");
-    themeBtn.textContent = isDark ? "🌙" : "☀️";
+    themeBtn.innerHTML = navIconSvg(isDark ? MOON_ICON : SUN_ICON);
     themeBtn.setAttribute("aria-label", "테마 전환 (현재: " + THEME_LABEL[state.theme] + ")");
   }
   applyTheme();

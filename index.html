@@ -1537,7 +1537,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         when: "팀원마다 다른 권한(예: 개발자는 배포만, 운영자는 전체 관리)을 주고 싶을 때",
         example: "az role assignment create --assignee user@contoso.com --role Contributor --scope /subscriptions/{subscription-id}/resourceGroups/rg-migration" },
       { name: "관리 ID(Managed Identity)", code: "Managed Identity", url: "https://learn.microsoft.com/ko-kr/azure/active-directory/managed-identities-azure-resources/overview",
-        easy: "Azure 리소스끼리 비밀번호 없이 서로 인증할 수 있게 해주는 자동 발급 신원입니다. APIM이 Key Vault나 Storage에 접근할 때 별도 자격 증명을 코드에 넣지 않고 이 관리 ID로 인증합니다.",
+        easy: "Azure 리소스끼리 비밀번호 없이 서로 인증할 수 있게 해주는 자동 발급 신원입니다. APIM이 Key Vault나 Storage에 접근할 때 별도 자격 증명을 코드에 넣지 않고 이 관리 ID로 인증합니다. --enable-managed-identity 플래그는 Consumption 티어 전용이며, 다른 티어(Developer/Basic/Standard/Premium 등)에서는 az apim update ... --set identity.type=SystemAssigned를 사용합니다.",
         when: "APIM/App Gateway가 Key Vault, Storage 같은 다른 Azure 리소스에 접근해야 할 때",
         example: "az apim update --resource-group rg-migration --name my-apim --enable-managed-identity true" }
     ] }
@@ -1576,7 +1576,7 @@ As a &lt;역할&gt;, I want &lt;기능&gt;, so that &lt;목적&gt;.
         when: "가장 느린 요청 Top 10처럼 순위가 필요한 조회를 할 때",
         example: "ApiManagementGatewayLogs\n| top 10 by TotalTime desc" },
       { name: "join — 테이블 결합", code: "join", url: "https://learn.microsoft.com/ko-kr/kusto/query/join-operator",
-        easy: "OperationId 같은 공통 키로 두 테이블(예: AppRequests와 AppExceptions)을 연결합니다. 이 프로젝트의 로컬 Kusto 실행기는 join을 지원하지 않습니다 — 정확히 재현하기 어려워 화이트리스트에서 제외했습니다.",
+        easy: "OperationId 같은 공통 키로 두 테이블(예: AppRequests와 AppExceptions)을 연결합니다. 이 페이지의 단일 테이블 Kusto 실행기(\"Kusto 실행기\" 탭)는 join을 지원하지 않지만, 여러 테이블 join은 \"KQL 조인 랩\" 탭에서 실습할 수 있습니다.",
         when: "실패한 요청과 그 원인 예외를 함께 보고 싶을 때 (실제 Azure Monitor에서만 사용 가능, 이 프로젝트의 로컬 실행기에서는 미지원)",
         example: 'AppRequests\n| where Success == false\n| join kind=inner (AppExceptions) on OperationId\n| project Name, ExceptionType' },
       { name: "let — 변수 선언", code: "let", url: "https://learn.microsoft.com/ko-kr/kusto/query/let-statement",

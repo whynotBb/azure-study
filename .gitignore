@@ -1,3 +1,4 @@
 .idea/
 .gstack/
 *.stackdump
+.claude/

@@ -2377,6 +2377,9 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       }
       html += '<label class="lab-check"><input type="checkbox" id="labInputForceFail"' + (forceFailChecked ? " checked" : "") + '> 백엔드 강제 실패(503)</label>';
       html += "</div>";
+      if (route.inputs.indexOf("apikey") !== -1 || route.inputs.indexOf("clientIp") !== -1) {
+        html += '<p class="pwhen" style="margin-top:var(--sp-2);">apikey는 이 라우트 정책이 요구하는 값과 일치해야 통과합니다(불일치 시 401 등 차단을 확인할 수 있음). 요청자 IP는 rate-limit-by-key의 카운터 키로 쓰이므로, 같은 값을 반복 입력하면 요청 횟수가 누적되고 다른 값으로 바꾸면 별도 카운터로 분리됩니다.</p>';
+      }
       inputsBody.innerHTML = html;
       document.getElementById("labInputForceFail").addEventListener("change", function () {
         forceFailChecked = this.checked;
@@ -2423,6 +2426,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       '<label>요청자 IP<input type="text" id="labPolicyIp" placeholder="예: 10.0.0.99"></label>' +
       '<label class="lab-check"><input type="checkbox" id="labPolicyForceFail"> 백엔드 강제 실패(503)</label>' +
       "</div>" +
+      '<p class="pwhen" style="margin-top:var(--sp-2);">두 값은 위 정책 XML이 직접 검사하는 대상입니다 — apikey는 XML의 check-header value와 비교되어 불일치 시 지정된 실패 코드로 차단되고, 요청자 IP는 rate-limit-by-key의 counter-key로 쓰여 같은 값을 반복 입력하면 카운터가 누적됩니다. XML을 고치면 비교 대상도 그대로 바뀝니다.</p>' +
       '<button class="btn primary" type="button" id="labPolicyRun">실행</button>' +
       '<button class="btn" type="button" id="labPolicyResetCounters" style="margin-left:var(--sp-2);">카운터 초기화</button>' +
       '<p class="pwhen" style="margin-top:var(--sp-2);">API 테스트 탭과 요율 제한(rate-limit) 카운터를 공유합니다. 429가 계속 뜨면 여기를 눌러 초기화하세요.</p>' +

@@ -605,7 +605,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       <div class="panel-head">
         <span class="eyebrow">13 · Local Test Lab</span>
         <h1>마이그레이션</h1>
-        <p class="desc">Kong→APIM 이관 시 놓치기 쉬운 함정을 시나리오로 예측해 보세요. "발생한다/안 한다"를 먼저 판단한 뒤 근거를 확인합니다.</p>
+        <p class="desc">Kong→APIM 이관 시 놓치기 쉬운 함정을 시나리오로 예측해 보세요. "예/아니요"를 먼저 판단한 뒤 근거를 확인합니다.</p>
       </div>
       <div id="labMigrationBody"></div>
     </section>
@@ -2614,8 +2614,8 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       return '<div class="quiz-card"><div class="quiz-head"><h3>시나리오 ' + (idx + 1) + '</h3></div><div class="quiz-body">' +
         '<p class="quiz-scenario">' + item.scenario + '</p>' +
         '<div class="quiz-actions">' +
-        '<button class="btn" type="button" data-mig-guess="' + idx + '" data-guess="true">발생한다</button>' +
-        '<button class="btn" type="button" data-mig-guess="' + idx + '" data-guess="false">발생하지 않는다</button>' +
+        '<button class="btn" type="button" data-mig-guess="' + idx + '" data-guess="true">예</button>' +
+        '<button class="btn" type="button" data-mig-guess="' + idx + '" data-guess="false">아니요</button>' +
         "</div>" +
         '<div class="answer-reveal" id="labMigReveal' + idx + '"><span class="tag">정답</span><p class="pwhen" style="margin-top:var(--sp-2);"><strong>' + item.answer + '</strong></p><p class="quiz-scenario">' + item.reason + "</p></div>" +
         "</div></div>";

@@ -448,7 +448,7 @@
     <section class="panel" id="panel-kql-ref" data-panel>
       <div class="panel-head apim-ref-head">
         <div class="htext">
-          <span class="eyebrow">04 · Reference</span>
+          <span class="eyebrow">06 · Reference</span>
           <h1>KQL 레퍼런스</h1>
           <p class="desc">Azure Monitor/Kusto 공식 "KQL 빠른 참조" 문서에 실린 연산자·함수를 전부 가져와, 쉬운 말 설명과 예시로 다시 정리했습니다. <strong>주의:</strong> Kibana의 검색창 문법(Lucene/Kibana Query Language)도 약어가 "KQL"이지만, 여기서 다루는 Azure의 KQL은 전혀 다른 언어인 <strong>Kusto Query Language</strong>입니다.</p>
         </div>
@@ -461,7 +461,7 @@
 
     <section class="panel" id="panel-kql" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">05 · Active Recall</span>
+        <span class="eyebrow">07 · Active Recall</span>
         <h1>KQL 변환 퀴즈</h1>
         <p class="desc">Kibana 검색·집계 문법을 보고, 동일 동작을 하는 KQL(Kusto)로 먼저 직접 작성해 본 뒤 정답과 비교하세요.</p>
       </div>
@@ -474,7 +474,7 @@
     <section class="panel" id="panel-data-ref" data-panel>
       <div class="panel-head apim-ref-head">
         <div class="htext">
-          <span class="eyebrow">06 · Reference</span>
+          <span class="eyebrow">08 · Reference</span>
           <h1>데이터·인프라 레퍼런스</h1>
           <p class="desc">이 프로젝트의 전환 대상은 Kong뿐 아니라 Cassandra/PostgreSQL, 그리고 Application Gateway·SSL·방화벽·Azure 기초까지 포함합니다. 공식 문서를 근거로 쉬운 설명과 예시로 정리했습니다.</p>
         </div>
@@ -487,7 +487,7 @@
 
     <section class="panel" id="panel-data-quiz" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">07 · Active Recall</span>
+        <span class="eyebrow">09 · Active Recall</span>
         <h1>데이터·인프라 퀴즈</h1>
         <p class="desc">Cassandra/PostgreSQL 데이터 계층과 Application Gateway·SSL·방화벽·Azure 기초 개념을 설명만 보고 먼저 떠올려본 뒤 정답과 비교하세요.</p>
       </div>
@@ -499,7 +499,7 @@
 
     <section class="panel" id="panel-jira" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">08 · Process Simulation</span>
+        <span class="eyebrow">20 · Process Simulation</span>
         <h1>AIDD · Jira 프로세스 시뮬레이션</h1>
         <p class="desc">Azure/Copilot/Jira 계정이 아직 없어도, 실제 업무에서 요구되는 "Jira 티켓 작성 + AI 작업 히스토리 기록" 루틴은 미리 연습할 수 있습니다. 아래 시나리오로 티켓을 직접 작성해 보세요.</p>
       </div>
@@ -568,7 +568,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-overview" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">09 · Local Test Lab</span>
+        <span class="eyebrow">10 · Local Test Lab</span>
         <h1>랩 개요</h1>
         <p class="desc">Azure 실 접속 권한 없이도, 샘플 Kong 설정과 그 APIM 대응 정책을 로컬 mock 엔진으로 실행해 결과를 비교합니다. 이 페이지의 샘플 데이터를 아래 4개 탭이 공유합니다.</p>
       </div>
@@ -577,7 +577,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-api-test" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">10 · Local Test Lab</span>
+        <span class="eyebrow">11 · Local Test Lab</span>
         <h1>API 테스트</h1>
         <p class="desc">샘플 라우트를 선택하고 값을 입력해 실행하면, 같은 요청에 대해 Kong mock과 APIM mock이 각각 어떻게 응답하는지 나란히 비교합니다.</p>
       </div>
@@ -586,7 +586,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-policy" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">11 · Local Test Lab</span>
+        <span class="eyebrow">12 · Local Test Lab</span>
         <h1>APIM Policy</h1>
         <p class="desc">정책 XML을 직접 편집해서 실행해 보세요. 화이트리스트 8개 정책(check-header, rate-limit, rate-limit-by-key, cors, set-header, rewrite-uri, ip-filter, return-response)과 backend 섹션의 retry, on-error 섹션의 return-response를 시뮬레이션하며, 그 외 태그는 구문은 인정하되 "미지원" 배지로 표시합니다. rate-limit-by-key의 counter-key는 @(context.Request.IpAddress)만 지원하며, rate-limit 카운팅은 실제 classic 티어와 유사한 슬라이딩 윈도우 알고리즘으로 시뮬레이션합니다.</p>
       </div>
@@ -595,7 +595,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-logs" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">12 · Local Test Lab</span>
+        <span class="eyebrow">13 · Local Test Lab</span>
         <h1>로그 비교</h1>
         <p class="desc">Kong/Nginx 로그 샘플을 보고 질문에 맞는 KQL(Kusto)을 직접 작성한 뒤 정답과 비교하세요. 기존 KQL 퀴즈와 달리 실제 로그 라인을 입력 맥락으로 사용합니다.</p>
       </div>
@@ -604,7 +604,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-migration" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">13 · Local Test Lab</span>
+        <span class="eyebrow">14 · Local Test Lab</span>
         <h1>마이그레이션</h1>
         <p class="desc">Kong→APIM 이관 시 놓치기 쉬운 함정을 시나리오로 예측해 보세요. "예/아니요"를 먼저 판단한 뒤 근거를 확인합니다.</p>
       </div>
@@ -614,7 +614,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     <section class="panel" id="panel-azuremonitor-ref" data-panel>
       <div class="panel-head apim-ref-head">
         <div class="htext">
-          <span class="eyebrow">14 · Reference</span>
+          <span class="eyebrow">04 · Reference</span>
           <h1>Azure Monitor 레퍼런스</h1>
           <p class="desc">Log Analytics 테이블 스키마, KQL(Kusto) 연산자, 알림 규칙, 액션 그룹, 워크북/대시보드, 진단 설정을 공식 문서 기준으로 정리했습니다. <strong>주의:</strong> 여기서 다루는 KQL은 앞선 "KQL 레퍼런스"의 Kusto Query Language와 같은 언어입니다(Kibana Query Language 아님) — Azure Monitor 데이터에 실제로 적용하는 예시로 재구성했습니다.</p>
         </div>
@@ -626,7 +626,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-azuremonitor-quiz" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">15 · Active Recall</span>
+        <span class="eyebrow">05 · Active Recall</span>
         <h1>Azure Monitor 퀴즈</h1>
         <p class="desc">레퍼런스에 실린 항목을 설명만 보고 먼저 떠올려 본 뒤 정답과 비교하세요.</p>
       </div>
@@ -636,7 +636,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-kusto" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">16 · Local Test Lab</span>
+        <span class="eyebrow">15 · Local Test Lab</span>
         <h1>Kusto 실행기</h1>
         <p class="desc">Kusto(Azure Monitor) 쿼리를 직접 작성해 로컬 가상 <code>ApiManagementGatewayLogs</code> 테이블에 실행합니다. 화이트리스트 연산자(where/project/summarize/top/sort/take/render)만 지원하며, <code>join</code> 등 그 외 연산자는 실행하지 않고 명확히 안내합니다.</p>
       </div>
@@ -645,7 +645,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-alert" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">17 · Local Test Lab</span>
+        <span class="eyebrow">16 · Local Test Lab</span>
         <h1>알림 시뮬레이터</h1>
         <p class="desc">샘플 응답 시간 메트릭 시계열에 임계값·평가 빈도·조회 기간(lookback)을 설정해 실제 Azure Monitor 메트릭 알림처럼 평가해 봅니다. 정적 임계값만 지원합니다.</p>
       </div>
@@ -654,7 +654,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-workbook" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">18 · Local Test Lab</span>
+        <span class="eyebrow">17 · Local Test Lab</span>
         <h1>Workbooks 구축</h1>
         <p class="desc">텍스트·파라미터·쿼리·차트 셀을 직접 조합해 Azure Monitor 워크북을 만들어 봅니다. 쿼리 셀은 Kusto 실행기와 동일한 엔진을 재사용하며, 실행기 탭의 쿼리를 그대로 가져올 수 있습니다.</p>
       </div>
@@ -667,7 +667,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
     <section class="panel" id="panel-lab-timeout" data-panel>
       <div class="panel-head">
-        <span class="eyebrow">20 · Local Test Lab</span>
+        <span class="eyebrow">18 · Local Test Lab</span>
         <h1>백엔드 지연/타임아웃</h1>
         <p class="desc">billing-get 라우트(백엔드 재시도+커스텀 오류 응답)를 대상으로, 백엔드 응답 지연(ms)을 직접 입력해 타임아웃·재시도 동작을 체험합니다. APIM 타임아웃은 30초(30000ms), Kong은 데모용 축소값 3000ms입니다. 지연을 <strong>3000~30000ms 사이(예: 5000ms)</strong>로 넣으면 Kong은 타임아웃으로 즉시 실패하는데 APIM은 아직 타임아웃 전이라 성공 응답이 옵니다 — 두 시스템의 타임아웃 설정값을 맞추지 않으면 이런 예측 불가능한 비대칭이 생긴다는 뜻입니다. 지연을 <strong>30000ms 초과(예: 35000ms)</strong>로 넣으면 이번엔 둘 다 실패하는데, APIM은 재시도 3회 후 커스텀 오류로 응답하고 Kong은 즉시 실패(재시도 없음)하는 차이를 비교할 수 있습니다.</p>
       </div>

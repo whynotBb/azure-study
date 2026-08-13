@@ -259,7 +259,7 @@ git commit -m "docs: Azure 기초 개념 레퍼런스에 관리그룹/RBAC스코
 
 - [ ] **Step 1: 항목 총 개수 확인**
 
-Playwright로 `panel-data-ref` 패널을 열어 카테고리별 `.pcard` 개수를 세어, Cassandra 12·PostgreSQL 11·App Gateway 8·SSL/방화벽 10·Azure 기초 10 (총 50개)인지 확인.
+Playwright로 `panel-data-ref` 패널을 열어 카테고리별 `.pcard` 개수를 세어, Cassandra 11·PostgreSQL 11·App Gateway 8·SSL/방화벽 10·Azure 기초 10 (총 50개)인지 확인.
 
 - [ ] **Step 2: 퀴즈 자동 반영 확인**
 

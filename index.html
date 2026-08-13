@@ -337,6 +337,14 @@
 
   .theme-toggle { position: fixed; bottom: var(--sp-4); right: var(--sp-4); z-index: 20; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .theme-toggle svg { width: 20px; height: 20px; }
+  .scroll-top-btn {
+    position: fixed; bottom: calc(var(--sp-4) + 44px + var(--sp-2)); right: var(--sp-4); z-index: 20;
+    width: 44px; height: 44px; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .scroll-top-btn svg { width: 20px; height: 20px; }
+  .scroll-top-btn.show { opacity: 1; pointer-events: auto; }
   .lab-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
   @media (max-width: 720px) { .lab-compare-grid { grid-template-columns: 1fr; } }
   .lab-result-title { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
@@ -722,6 +730,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
   </div>
 </div>
 
+<button class="btn scroll-top-btn" id="scrollTopBtn" type="button" aria-label="맨 위로"></button>
 <button class="btn theme-toggle" id="themeToggle" type="button" aria-label="테마 전환"></button>
 
 <script>
@@ -789,6 +798,17 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
     applyTheme();
     persist();
+  });
+
+  /* ---------------- 맨 위로 버튼 ---------------- */
+  var UP_ARROW_ICON = '<path d="M12 19V5M5 12l7-7 7 7"/>';
+  var scrollTopBtn = document.getElementById("scrollTopBtn");
+  scrollTopBtn.innerHTML = navIconSvg(UP_ARROW_ICON);
+  scrollTopBtn.addEventListener("click", function () {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  window.addEventListener("scroll", function () {
+    scrollTopBtn.classList.toggle("show", window.scrollY > 300);
   });
 
   /* ---------------- nav / tabs (tree) ---------------- */
@@ -4173,7 +4193,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     var groupLabels = { single: "단일 테이블 예제", join2: "2테이블 join 예제", join3: "3테이블 조합 예제" };
     var html = "";
     ["single", "join2", "join3"].forEach(function (g) {
-      html += "<h2>" + groupLabels[g] + "</h2>";
+      html += '<h2 class="section-title">' + groupLabels[g] + "</h2>";
       html += KQL_EXAMPLES.filter(function (ex) { return ex.group === g; }).map(renderExampleCard).join("");
     });
     return html;

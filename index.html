@@ -78,7 +78,8 @@
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; overflow-x: hidden; }
+  html, body { margin: 0; padding: 0; }
+  html { overflow-x: hidden; }
   body {
     background: var(--bg);
     color: var(--text);
@@ -393,9 +394,14 @@
   .demo-highlight { outline: 2px solid var(--accent-target); outline-offset: 2px; animation: demo-pulse 1s ease-in-out infinite; }
   @keyframes demo-pulse { 0%, 100% { outline-color: var(--accent-target); } 50% { outline-color: transparent; } }
   .kql-note { background: var(--accent-target-bg); border: 1px solid var(--accent-target); border-radius: var(--radius-md); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); margin-bottom: var(--sp-5); }
-  .kql-lab-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); }
-  .kql-lab-tabs button { background: none; border: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; }
-  .kql-lab-tabs button.active { color: var(--accent-target); border-bottom-color: var(--accent-target); font-weight: 600; }
+  .kql-lab-tabs { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); background: var(--bg); }
+  .kql-lab-tabs-buttons { display: flex; gap: var(--sp-2); }
+  .kql-lab-tabs-buttons button { background: none; border: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; }
+  .kql-lab-tabs-buttons button.active { color: var(--accent-target); border-bottom-color: var(--accent-target); font-weight: 600; }
+  #kqlLabResetBtn { flex: none; margin-bottom: var(--sp-2); }
+  @media (max-width: 860px) {
+    .kql-lab-tabs { position: sticky; top: 64px; z-index: 10; padding-top: var(--sp-2); }
+  }
   .kql-editor { width: 100%; min-height: 100px; margin-top: var(--sp-2); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg-elevated); color: var(--text); resize: vertical; }
   .example-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-4); margin-bottom: var(--sp-5); background: var(--bg-elevated); }
   .example-badges { margin-bottom: var(--sp-2); }
@@ -695,21 +701,21 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     </section>
 
     <section class="panel" id="panel-kql-join-lab" data-panel>
-      <div class="panel-head apim-ref-head">
-        <div class="htext">
-          <span class="eyebrow">19 · Local Test Lab</span>
-          <h1>KQL 멀티테이블 실습 랩</h1>
-          <p class="desc">게이트웨이(ApiManagementGatewayLogs)·백엔드(AppRequests)·DB(AppDependencies) 3개 가상 테이블을 튜토리얼로 익히고, 17개 예제(단일 테이블/2테이블 join/3테이블 조합)를 직접 쿼리로 풀어본 뒤 정답과 비교하세요.</p>
-        </div>
-        <button class="btn" id="kqlLabResetBtn" title="튜토리얼 진행 단계와 예제 17개의 내 쿼리·정답 펼침 상태를 전부 초기화합니다">다시 시작</button>
+      <div class="panel-head">
+        <span class="eyebrow">19 · Local Test Lab</span>
+        <h1>KQL 멀티테이블 실습 랩</h1>
+        <p class="desc">게이트웨이(ApiManagementGatewayLogs)·백엔드(AppRequests)·DB(AppDependencies) 3개 가상 테이블을 튜토리얼로 익히고, 17개 예제(단일 테이블/2테이블 join/3테이블 조합)를 직접 쿼리로 풀어본 뒤 정답과 비교하세요.</p>
       </div>
       <div class="kql-note">
         이 탭의 "KQL"은 <strong>Kusto Query Language</strong>(Azure Monitor/Log Analytics 쿼리 언어)를 의미합니다.
         Kibana의 <strong>Kibana Query Language</strong>(검색창 필터 문법)와는 문법·용도가 다른 별개의 언어입니다.
       </div>
       <div class="kql-lab-tabs" id="kqlLabTabs">
-        <button data-tab="tutorial">튜토리얼</button>
-        <button data-tab="examples">예제 17개</button>
+        <div class="kql-lab-tabs-buttons">
+          <button data-tab="tutorial">튜토리얼</button>
+          <button data-tab="examples">예제 17개</button>
+        </div>
+        <button class="btn" id="kqlLabResetBtn" title="튜토리얼 진행 단계와 예제 17개의 내 쿼리·정답 펼침 상태를 전부 초기화합니다">다시 시작</button>
       </div>
       <div id="kqlLabApp"></div>
     </section>

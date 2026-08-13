@@ -78,7 +78,7 @@
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html, body { margin: 0; padding: 0; overflow-x: hidden; }
   body {
     background: var(--bg);
     color: var(--text);
@@ -121,14 +121,32 @@
     height: 100vh;
     overflow-y: auto;
   }
+  .hamburger-btn { display: none; }
   @media (max-width: 860px) {
-    .rail { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: var(--sp-3); }
+    .rail {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: auto; flex-direction: row; align-items: center; justify-content: space-between;
+      border-right: none; border-bottom: 1px solid var(--border);
+      padding: var(--sp-3) var(--sp-4);
+    }
+    .hamburger-btn {
+      display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 2; flex: none;
+      width: 40px; height: 40px;
+      border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+      background: var(--bg); color: var(--text); cursor: pointer;
+    }
+    .hamburger-btn svg { width: 20px; height: 20px; }
+    .main { padding-top: 64px; }
   }
   .rail-brand {
     padding: 0 var(--sp-2) var(--sp-4);
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+  @media (max-width: 860px) {
+    .rail-brand { padding: 0; }
   }
   .rail-brand .mark {
     font-size: var(--fs-2xs);
@@ -145,12 +163,15 @@
   }
   @media (max-width: 860px) {
     .rail-nav {
-      flex-direction: row;
-      overflow-x: auto;
-      gap: var(--sp-1);
-      padding-bottom: var(--sp-1);
-      scrollbar-width: thin;
+      position: fixed; inset: 0; z-index: 1;
+      background: var(--bg);
+      padding: var(--sp-7) var(--sp-4) var(--sp-4);
+      overflow-y: auto;
+      transform: translateX(-100%);
+      transition: transform .25s ease;
     }
+    body.mobile-nav-open .rail-nav { transform: translateX(0); }
+    body.mobile-nav-open { overflow: hidden; }
   }
   .nav-item {
     display: flex;
@@ -185,10 +206,6 @@
   .caret-spacer { flex: none; width: 12px; height: 12px; }
   .nav-children { display: none; flex-direction: column; gap: 2px; margin: 2px 0 4px 20px; padding-left: var(--sp-2); border-left: 1px solid var(--border); }
   .nav-group.open .nav-children { display: flex; }
-  @media (max-width: 860px) {
-    .nav-group { flex-direction: row; }
-    .nav-children { display: flex; flex-direction: row; margin: 0; padding-left: 0; border-left: none; }
-  }
 
   .storage-banner {
     display: none;
@@ -384,8 +401,10 @@
   .example-badges { margin-bottom: var(--sp-2); }
   .example-badges span { display: inline-block; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 2px 8px; margin-right: var(--sp-2); color: var(--text-dim); }
   .kql-error { color: #b91c1c; font-size: var(--fs-sm); padding: var(--sp-2) 0; }
-  .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); margin-top: var(--sp-2); }
-  .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .kql-table-scroll { overflow-x: auto; margin-top: var(--sp-2); }
+  .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
+  .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; white-space: nowrap; }
+  .workbook-model-answer pre { overflow-x: auto; max-width: 100%; }
 </style>
 
 <div class="app-shell">
@@ -393,6 +412,7 @@
     <div class="rail-brand">
       <span class="mark">Learning Hub</span>
     </div>
+    <button class="hamburger-btn" id="mobileNavToggle" type="button" aria-label="메뉴 열기" aria-expanded="false"></button>
     <div class="rail-nav" id="railNav" role="tablist"></div>
   </nav>
 
@@ -767,6 +787,8 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
   /* ---------------- nav / tabs (tree) ---------------- */
   var CARET_ICON = '<path d="M9 6l6 6-6 6"/>';
+  var HAMBURGER_ICON = '<path d="M4 6h16M4 12h16M4 18h16"/>';
+  var CLOSE_ICON = '<path d="M6 6l12 12M18 6L6 18"/>';
   // 메뉴 순서: Azure 서비스 특성에 따른 우선순위
   // 1) 구조 비교(진입점 오리엔테이션) 2) APIM(Kong 대체 — 모든 요청이 거치는 최우선 게이트웨이)
   // 3) Azure Monitor(Kibana/ES 대체 — 2차 핵심 관측성) 4) KQL(Monitor 조회에 쓰이는 부속 스킬, Monitor 바로 뒤에 배치)
@@ -854,6 +876,18 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     }
   });
 
+  var mobileNavToggle = document.getElementById("mobileNavToggle");
+  function setMobileNavOpen(isOpen) {
+    document.body.classList.toggle("mobile-nav-open", isOpen);
+    mobileNavToggle.innerHTML = navIconSvg(isOpen ? CLOSE_ICON : HAMBURGER_ICON);
+    mobileNavToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    mobileNavToggle.setAttribute("aria-label", isOpen ? "메뉴 닫기" : "메뉴 열기");
+  }
+  setMobileNavOpen(false);
+  mobileNavToggle.addEventListener("click", function () {
+    setMobileNavOpen(!document.body.classList.contains("mobile-nav-open"));
+  });
+
   function allNavIds() {
     var ids = [];
     NAV.forEach(function (n) { n.children ? n.children.forEach(function (c) { ids.push(c.id); }) : ids.push(n.id); });
@@ -865,6 +899,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
   }
 
   function switchTab(id, skipAutoOpen) {
+    setMobileNavOpen(false);
     document.querySelectorAll("[data-panel]").forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + id); });
     document.querySelectorAll(".nav-item").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === id); });
     var parent = findParentGroup(id);
@@ -4125,7 +4160,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     var body = result.rows.map(function (r) {
       return "<tr>" + cols.map(function (c) { return "<td>" + escapeHtml(r[c]) + "</td>"; }).join("") + "</tr>";
     }).join("");
-    return '<table class="kql-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+    return '<div class="kql-table-scroll"><table class="kql-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
   }
 
   function renderExamplesTab() {

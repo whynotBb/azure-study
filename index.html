@@ -224,14 +224,16 @@
   .section-title { font-size: var(--fs-lg); margin: var(--sp-6) 0 var(--sp-3); letter-spacing: -0.01em; }
 
   /* ---------- Compare tables ---------- */
-  .cmp-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+  .cmp-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--fs-xs); }
+  .cmp-table td.col-dim { word-break: keep-all; }
+  .cmp-table td.col-legacy, .cmp-table td.col-target { word-break: keep-all; overflow-wrap: break-word; }
   .cmp-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
   .cmp-table th, .cmp-table td { text-align: left; padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); vertical-align: top; }
   .cmp-table tr:last-child td { border-bottom: none; }
   .cmp-table thead th { background: var(--bg-inset); font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 700; position: sticky; top: 0; }
   .cmp-table th.col-legacy, .cmp-table td.col-legacy { border-left: 3px solid var(--accent-legacy); }
   .cmp-table th.col-target, .cmp-table td.col-target { border-left: 3px solid var(--accent-target); }
-  .cmp-table td.col-dim { color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+  .cmp-table td.col-dim { color: var(--text-dim); font-weight: 600; }
 
   .track-chip { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .track-chip.legacy { color: var(--accent-legacy); }
@@ -712,7 +714,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
   })();
 
   function defaultState() {
-    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {}, navOpen: { apim: false, kqlgroup: false, datainfra: false, azuremonitor: false, lab: false }, navCollapsedByDefaultApplied: true };
+    return { quiz: {}, proc: {}, jira: "", lastTab: "compare", theme: "auto", refOpen: {}, lab: {} };
   }
   function loadState() {
     var raw = null;
@@ -720,15 +722,13 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     if (!raw) return defaultState();
     try {
       var parsed = JSON.parse(raw);
-      var merged = Object.assign(defaultState(), parsed);
-      // 사이드바 기본 접힘 정책이 도입되기 전 저장된 navOpen(전부 true)이 남아있는 경우, 1회에 한해 새 기본값으로 되돌린다.
-      if (!parsed.navCollapsedByDefaultApplied) merged.navOpen = defaultState().navOpen;
-      merged.navCollapsedByDefaultApplied = true;
-      return merged;
+      return Object.assign(defaultState(), parsed);
     } catch (e) { return defaultState(); }
   }
 
   var state = loadState();
+  // 새로고침 시 항상 닫힘 상태로 시작 — localStorage에 저장/복원하지 않음
+  var navOpen = { apim: false, kqlgroup: false, datainfra: false, azuremonitor: false, lab: false };
 
   function persist() {
     var raw = JSON.stringify(state);
@@ -766,11 +766,20 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
   /* ---------------- nav / tabs (tree) ---------------- */
   var CARET_ICON = '<path d="M9 6l6 6-6 6"/>';
+  // 메뉴 순서: Azure 서비스 특성에 따른 우선순위
+  // 1) 구조 비교(진입점 오리엔테이션) 2) APIM(Kong 대체 — 모든 요청이 거치는 최우선 게이트웨이)
+  // 3) Azure Monitor(Kibana/ES 대체 — 2차 핵심 관측성) 4) KQL(Monitor 조회에 쓰이는 부속 스킬, Monitor 바로 뒤에 배치)
+  // 5) 데이터·인프라(Cassandra/PostgreSQL — 변경 폭이 상대적으로 작은 백엔드 계층)
+  // 6) 실습 랩들(개념 학습 후 손으로 익히는 단계) 7) AIDD·Jira(Azure 기술이 아닌 개발 프로세스 — 최하단)
   var NAV = [
     { id: "compare", label: "구조 비교", icon: '<path d="M4 8h11M11 4l4 4-4 4"/><path d="M20 16H9M13 12l-4 4 4 4"/>' },
     { id: "apim", label: "APIM 정책", icon: '<path d="M8 4 3 9v6l5 5"/><path d="M16 4l5 5v6l-5 5"/>', children: [
         { id: "apim-ref", label: "APIM 정책 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
         { id: "policy", label: "정책 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
+      ] },
+    { id: "azuremonitor", label: "Azure Monitor", icon: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', children: [
+        { id: "azuremonitor-ref", label: "Azure Monitor 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
+        { id: "azuremonitor-quiz", label: "Azure Monitor 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
       ] },
     { id: "kqlgroup", label: "KQL(Kusto)", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9l3 3-3 3M13 15h4"/>', children: [
         { id: "kql-ref", label: "KQL 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
@@ -780,11 +789,6 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
         { id: "data-ref", label: "데이터·인프라 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
         { id: "data-quiz", label: "데이터·인프라 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
       ] },
-    { id: "azuremonitor", label: "Azure Monitor", icon: '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', children: [
-        { id: "azuremonitor-ref", label: "Azure Monitor 레퍼런스", icon: '<path d="M6 4h9l5 5v11H6z"/><path d="M15 4v5h5"/><path d="M9 12h6M9 15.5h6"/>' },
-        { id: "azuremonitor-quiz", label: "Azure Monitor 퀴즈", icon: '<path d="M9 9a3 3 0 1 1 3 3v2"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/>' }
-      ] },
-    { id: "jira", label: "AIDD·Jira", icon: '<path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 13h6M9 17h4"/>' },
     { id: "lab", label: "로컬 테스트 랩", icon: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>', children: [
         { id: "lab-overview", label: "랩 개요", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18"/>' },
         { id: "lab-api-test", label: "API 테스트", icon: '<path d="M4 17l6-6-6-6M12 19h8"/>' },
@@ -796,7 +800,8 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
         { id: "lab-workbook", label: "Workbooks 구축", icon: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 9h10M7 13h6M7 17h4"/>' },
         { id: "lab-timeout", label: "백엔드 지연/타임아웃", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>' }
       ] },
-    { id: "kql-join-lab", label: "KQL 조인 랩", icon: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>' }
+    { id: "kql-join-lab", label: "KQL 조인 랩", icon: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>' },
+    { id: "jira", label: "AIDD·Jira", icon: '<path d="M6 3h9l5 5v13H6z"/><path d="M15 3v5h5"/><path d="M9 13h6M9 17h4"/>' }
   ];
 
   function navIconSvg(icon) {
@@ -816,8 +821,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       head.innerHTML = navIconSvg(n.icon) + "<span>" + n.label + "</span>" + navIconSvg(CARET_ICON).replace("<svg ", '<svg class="caret" ');
       head.addEventListener("click", function () {
         var isOpen = group.classList.toggle("open");
-        state.navOpen[n.id] = isOpen;
-        persist();
+        navOpen[n.id] = isOpen;
       });
       group.appendChild(head);
 
@@ -835,7 +839,7 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
       });
       group.appendChild(children);
 
-      if (state.navOpen[n.id] !== false) group.classList.add("open");
+      if (navOpen[n.id] !== false) group.classList.add("open");
       railNav.appendChild(group);
     } else {
       var btn2 = document.createElement("button");
@@ -859,22 +863,23 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     return found ? found.id : null;
   }
 
-  function switchTab(id) {
+  function switchTab(id, skipAutoOpen) {
     document.querySelectorAll("[data-panel]").forEach(function (p) { p.classList.toggle("active", p.id === "panel-" + id); });
     document.querySelectorAll(".nav-item").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === id); });
     var parent = findParentGroup(id);
-    if (parent) {
+    if (parent && !skipAutoOpen) {
       var groupEl = document.querySelector('[data-group="' + parent + '"]');
       if (groupEl && !groupEl.classList.contains("open")) {
         groupEl.classList.add("open");
-        state.navOpen[parent] = true;
+        navOpen[parent] = true;
       }
     }
     state.lastTab = id;
     persist();
     window.scrollTo(0, 0);
   }
-  switchTab(allNavIds().indexOf(state.lastTab) !== -1 ? state.lastTab : "compare");
+  // 페이지 로드시에는 nav 그룹을 자동으로 펼치지 않음 — 항상 닫힘 상태로 시작
+  switchTab(allNavIds().indexOf(state.lastTab) !== -1 ? state.lastTab : "compare", true);
 
   /* ---------------- comparison data ---------------- */
   var GATEWAY_ROWS = [
@@ -901,11 +906,13 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
 
   function renderCmpTable(elId, rows, legacyLabel, targetLabel) {
     var el = document.getElementById(elId);
+    // colgroup으로 두 테이블 모두 동일한 열 비율(항목 18% / 좌우 각 41%)을 강제 — 내용 길이와 무관하게 통일된 폭 유지
+    var colgroup = "<colgroup><col style=\"width:18%\"><col style=\"width:41%\"><col style=\"width:41%\"></colgroup>";
     var thead = "<thead><tr><th>비교 항목</th><th class=\"col-legacy\"><span class=\"track-chip legacy\">" + legacyLabel + "</span></th><th class=\"col-target\"><span class=\"track-chip target\">" + targetLabel + "</span></th></tr></thead>";
     var body = "<tbody>" + rows.map(function (r) {
       return "<tr><td class=\"col-dim\">" + r[0] + "</td><td class=\"col-legacy\">" + r[1] + "</td><td class=\"col-target\">" + r[2] + "</td></tr>";
     }).join("") + "</tbody>";
-    el.innerHTML = thead + body;
+    el.innerHTML = colgroup + thead + body;
   }
   renderCmpTable("tblGateway", GATEWAY_ROWS, "Kong", "Azure API Management");
   renderCmpTable("tblMonitor", MONITOR_ROWS, "Kibana / Elasticsearch", "Azure Monitor");

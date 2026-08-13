@@ -418,6 +418,10 @@
   .kql-table-scroll { overflow-x: auto; margin-top: var(--sp-2); }
   .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); }
   .kql-table th, .kql-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; white-space: nowrap; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-2); font-size: var(--fs-2xs); color: var(--text-dim); }
+  .chart-legend-vertical { flex-direction: column; gap: var(--sp-2); }
+  .chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
   .workbook-model-answer pre { overflow-x: auto; max-width: 100%; }
 </style>
 
@@ -4035,6 +4039,29 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     });
   }
 
+  // Azure Monitor/Workbooks 차트처럼 보이도록 축이 잘 나뉘는 최대값을 계산 (1/2/5/10 배수)
+  function chartAxisMax(maxV) {
+    if (maxV <= 0) return 1;
+    var mag = Math.pow(10, Math.floor(Math.log10(maxV)));
+    var norm = maxV / mag;
+    var niceNorm = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return niceNorm * mag;
+  }
+  function formatChartTick(v) {
+    if (Math.abs(v) >= 1000) return (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + "k";
+    return String(Math.round(v * 100) / 100);
+  }
+  function truncateChartLabel(s, n) {
+    s = String(s);
+    return s.length > n ? s.slice(0, n - 1) + "…" : s;
+  }
+  function renderChartLegend(numericCols) {
+    if (numericCols.length < 2) return "";
+    return '<div class="chart-legend">' + numericCols.map(function (c, i) {
+      return '<span class="chart-legend-item"><span class="chart-legend-swatch" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' + escapeHtml(c) + '</span>';
+    }).join("") + '</div>';
+  }
+
   function renderChart(result, opts) {
     opts = opts || {};
     if (result.error) return "";
@@ -4045,28 +4072,48 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     if (!numericCols.length) return '<p class="empty-hint">차트로 표현할 숫자 컬럼이 없습니다.</p>';
     if (!result.chartType) return "";
     var rows = result.rows;
-    var w = 640, h = 280, pad = 40;
+    var w = 640, h = 300;
+    var tickCount = 4;
 
     if (result.chartType === "timechart") {
+      var padL = 46, padR = 16, padT = 16, padB = 34;
+      var plotW = w - padL - padR, plotH = h - padT - padB;
       var xs = rows.map(function (r) { return new Date(r[categoryCol]).getTime(); });
       var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs) || minX + 1;
+      var allValsT = [];
+      numericCols.forEach(function (c) { rows.forEach(function (r) { allValsT.push(Number(r[c])); }); });
+      var axisMaxT = chartAxisMax(Math.max.apply(null, allValsT) || 1);
+      var gridT = "", yLabelsT = "";
+      for (var gi = 0; gi <= tickCount; gi++) {
+        var gv = axisMaxT * gi / tickCount;
+        var gy = padT + plotH - (gv / axisMaxT) * plotH;
+        gridT += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (padL + plotW) + '" y2="' + gy.toFixed(1) + '" stroke="currentColor" stroke-opacity="0.12"/>';
+        yLabelsT += '<text x="' + (padL - 8) + '" y="' + (gy + 3).toFixed(1) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="end">' + formatChartTick(gv) + '</text>';
+      }
       var seriesSvg = numericCols.map(function (col, si) {
-        var vals = rows.map(function (r) { return Number(r[col]); });
-        var maxY = Math.max.apply(null, vals) || 1;
         var pts = rows.map(function (r, i) {
-          var x = pad + (xs[i] - minX) / (maxX - minX || 1) * (w - 2 * pad);
-          var y = h - pad - (Number(r[col]) / maxY) * (h - 2 * pad);
+          var x = padL + (xs[i] - minX) / (maxX - minX || 1) * plotW;
+          var y = padT + plotH - (Number(r[col]) / axisMaxT) * plotH;
           return x.toFixed(1) + "," + y.toFixed(1);
         }).join(" ");
         return '<polyline points="' + pts + '" fill="none" stroke="' + CHART_COLORS[si % CHART_COLORS.length] + '" stroke-width="2"/>';
       }).join("");
-      return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + seriesSvg + '</svg>';
+      var xTickIdxs = rows.length > 1 ? [0, Math.floor((rows.length - 1) / 2), rows.length - 1] : [0];
+      var xLabelsT = xTickIdxs.map(function (i) {
+        var x = padL + (xs[i] - minX) / (maxX - minX || 1) * plotW;
+        var d = new Date(xs[i]);
+        var label = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+        return '<text x="' + x.toFixed(1) + '" y="' + (padT + plotH + 16) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="middle">' + label + '</text>';
+      }).join("");
+      var axisLinesT = '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="currentColor" stroke-opacity="0.35"/>' +
+        '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (padL + plotW) + '" y2="' + (padT + plotH) + '" stroke="currentColor" stroke-opacity="0.35"/>';
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + gridT + axisLinesT + yLabelsT + xLabelsT + seriesSvg + '</svg>' + renderChartLegend(numericCols);
     }
 
     if (result.chartType === "piechart") {
       var col0 = numericCols[0];
       var total = rows.reduce(function (s, r) { return s + Number(r[col0]); }, 0) || 1;
-      var cx = 120, cy = 120, r = 100, angle = -Math.PI / 2;
+      var cx = 110, cy = 110, r = 90, angle = -Math.PI / 2;
       var slices = rows.map(function (row, i) {
         var frac = Number(row[col0]) / total;
         var start = angle;
@@ -4075,41 +4122,75 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
         var x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle);
         var large = frac > 0.5 ? 1 : 0;
         var d = "M" + cx + "," + cy + " L" + x1.toFixed(1) + "," + y1.toFixed(1) + " A" + r + "," + r + " 0 " + large + " 1 " + x2.toFixed(1) + "," + y2.toFixed(1) + " Z";
-        return '<path d="' + d + '" fill="' + CHART_COLORS[i % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + ": " + row[col0]) + '</title></path>';
+        return '<path d="' + d + '" fill="' + CHART_COLORS[i % CHART_COLORS.length] + '" stroke="var(--bg-elevated)" stroke-width="1"><title>' + escapeHtml(row[categoryCol] + ": " + row[col0]) + '</title></path>';
       }).join("");
-      return '<svg viewBox="0 0 240 240" width="280">' + slices + '</svg>';
+      var legend = '<div class="chart-legend chart-legend-vertical">' + rows.map(function (row, i) {
+        var pct = Math.round(Number(row[col0]) / total * 1000) / 10;
+        return '<span class="chart-legend-item"><span class="chart-legend-swatch" style="background:' + CHART_COLORS[i % CHART_COLORS.length] + '"></span>' + escapeHtml(String(row[categoryCol])) + ' — ' + row[col0] + ' (' + pct + '%)</span>';
+      }).join("") + '</div>';
+      return '<div style="display:flex;gap:var(--sp-5);align-items:center;flex-wrap:wrap;"><svg viewBox="0 0 220 220" width="220">' + slices + '</svg>' + legend + '</div>';
     }
 
     // barchart(가로) / columnchart(세로)
     var isColumn = result.chartType === "columnchart";
     var allVals = [];
     numericCols.forEach(function (c) { rows.forEach(function (r) { allVals.push(Number(r[c])); }); });
-    var maxV = Math.max.apply(null, allVals) || 1;
+    var axisMax = chartAxisMax(Math.max.apply(null, allVals) || 1);
     var n = rows.length, sCount = numericCols.length;
     var bars = "";
+
     if (isColumn) {
-      var colW = (w - 2 * pad) / n;
+      var cPadL = 46, cPadR = 16, cPadT = 16, cPadB = 40;
+      var cPlotW = w - cPadL - cPadR, cPlotH = h - cPadT - cPadB;
+      var grid = "", yLabels = "";
+      for (var gi2 = 0; gi2 <= tickCount; gi2++) {
+        var gv2 = axisMax * gi2 / tickCount;
+        var gy2 = cPadT + cPlotH - (gv2 / axisMax) * cPlotH;
+        grid += '<line x1="' + cPadL + '" y1="' + gy2.toFixed(1) + '" x2="' + (cPadL + cPlotW) + '" y2="' + gy2.toFixed(1) + '" stroke="currentColor" stroke-opacity="0.12"/>';
+        yLabels += '<text x="' + (cPadL - 8) + '" y="' + (gy2 + 3).toFixed(1) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="end">' + formatChartTick(gv2) + '</text>';
+      }
+      var colW = cPlotW / n;
+      var xLabels = "";
       rows.forEach(function (row, i) {
         numericCols.forEach(function (col, si) {
           var bw = colW / sCount - 4;
-          var bh = (Number(row[col]) / maxV) * (h - 2 * pad);
-          var x = pad + i * colW + si * (bw + 2);
-          var y = h - pad - bh;
-          bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
+          var bh = (Number(row[col]) / axisMax) * cPlotH;
+          var x = cPadL + i * colW + si * (bw + 2);
+          var y = cPadT + cPlotH - bh;
+          bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(bw, 1).toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
         });
+        var labelX = cPadL + i * colW + colW / 2;
+        xLabels += '<text x="' + labelX.toFixed(1) + '" y="' + (cPadT + cPlotH + 16) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="middle">' + escapeHtml(truncateChartLabel(row[categoryCol], 12)) + '</text>';
       });
+      var axisLines = '<line x1="' + cPadL + '" y1="' + cPadT + '" x2="' + cPadL + '" y2="' + (cPadT + cPlotH) + '" stroke="currentColor" stroke-opacity="0.35"/>' +
+        '<line x1="' + cPadL + '" y1="' + (cPadT + cPlotH) + '" x2="' + (cPadL + cPlotW) + '" y2="' + (cPadT + cPlotH) + '" stroke="currentColor" stroke-opacity="0.35"/>';
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + grid + axisLines + yLabels + xLabels + bars + '</svg>' + renderChartLegend(numericCols);
     } else {
-      var rowH = (h - 2 * pad) / n;
+      var bPadL = 90, bPadR = 16, bPadT = 16, bPadB = 30;
+      var bPlotW = w - bPadL - bPadR, bPlotH = h - bPadT - bPadB;
+      var gridB = "", xLabelsB = "";
+      for (var gi3 = 0; gi3 <= tickCount; gi3++) {
+        var gv3 = axisMax * gi3 / tickCount;
+        var gx3 = bPadL + (gv3 / axisMax) * bPlotW;
+        gridB += '<line x1="' + gx3.toFixed(1) + '" y1="' + bPadT + '" x2="' + gx3.toFixed(1) + '" y2="' + (bPadT + bPlotH) + '" stroke="currentColor" stroke-opacity="0.12"/>';
+        xLabelsB += '<text x="' + gx3.toFixed(1) + '" y="' + (bPadT + bPlotH + 16) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="middle">' + formatChartTick(gv3) + '</text>';
+      }
+      var rowH = bPlotH / n;
+      var yLabelsB = "";
       rows.forEach(function (row, i) {
         numericCols.forEach(function (col, si) {
           var bh2 = rowH / sCount - 4;
-          var bw2 = (Number(row[col]) / maxV) * (w - 2 * pad);
-          var y2 = pad + i * rowH + si * (bh2 + 2);
-          bars += '<rect x="' + pad + '" y="' + y2.toFixed(1) + '" width="' + bw2.toFixed(1) + '" height="' + bh2.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
+          var bw2 = (Number(row[col]) / axisMax) * bPlotW;
+          var y2 = bPadT + i * rowH + si * (bh2 + 2);
+          bars += '<rect x="' + bPadL + '" y="' + y2.toFixed(1) + '" width="' + Math.max(bw2, 1).toFixed(1) + '" height="' + bh2.toFixed(1) + '" fill="' + CHART_COLORS[si % CHART_COLORS.length] + '"><title>' + escapeHtml(row[categoryCol] + " " + col + ": " + row[col]) + '</title></rect>';
         });
+        var labelY = bPadT + i * rowH + rowH / 2;
+        yLabelsB += '<text x="' + (bPadL - 8) + '" y="' + (labelY + 3).toFixed(1) + '" font-size="10" fill="currentColor" fill-opacity="0.6" text-anchor="end">' + escapeHtml(truncateChartLabel(row[categoryCol], 14)) + '</text>';
       });
+      var axisLinesB = '<line x1="' + bPadL + '" y1="' + bPadT + '" x2="' + bPadL + '" y2="' + (bPadT + bPlotH) + '" stroke="currentColor" stroke-opacity="0.35"/>' +
+        '<line x1="' + bPadL + '" y1="' + (bPadT + bPlotH) + '" x2="' + (bPadL + bPlotW) + '" y2="' + (bPadT + bPlotH) + '" stroke="currentColor" stroke-opacity="0.35"/>';
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + gridB + axisLinesB + xLabelsB + yLabelsB + bars + '</svg>' + renderChartLegend(numericCols);
     }
-    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="max-width:640px">' + bars + '</svg>';
   }
 
   var KQL_EXAMPLES = [

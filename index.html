@@ -351,7 +351,7 @@
   .alert-point.breached { border-color: #b91c1c; color: #b91c1c; }
   .alert-point.fired { background: #b91c1c; color: #fff; }
   .alert-point.resolved { background: #1a7f37; color: #fff; }
-  .alert-overlap-badge { font-size: var(--fs-xs); color: var(--text-dim); margin-bottom: var(--sp-2); }
+  .alert-overlap-badge { font-size: var(--fs-xs); color: var(--text-dim); margin-top: var(--sp-3); margin-bottom: var(--sp-2); }
   .workbook-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
   .workbook-mission-tabs { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-2); }
   .workbook-mission-tabs button.active { border-color: var(--accent-target); color: var(--accent-target); }
@@ -379,8 +379,9 @@
   .kql-lab-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); }
   .kql-lab-tabs button { background: none; border: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--text-dim); cursor: pointer; border-bottom: 2px solid transparent; }
   .kql-lab-tabs button.active { color: var(--accent-target); border-bottom-color: var(--accent-target); font-weight: 600; }
-  .kql-editor { width: 100%; min-height: 100px; font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg-elevated); color: var(--text); resize: vertical; }
+  .kql-editor { width: 100%; min-height: 100px; margin-top: var(--sp-2); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-3); background: var(--bg-elevated); color: var(--text); resize: vertical; }
   .example-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--sp-4); margin-bottom: var(--sp-5); background: var(--bg-elevated); }
+  .example-badges { margin-bottom: var(--sp-2); }
   .example-badges span { display: inline-block; font-size: var(--fs-xs); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 2px 8px; margin-right: var(--sp-2); color: var(--text-dim); }
   .kql-error { color: #b91c1c; font-size: var(--fs-sm); padding: var(--sp-2) 0; }
   .kql-table { border-collapse: collapse; width: 100%; font-size: var(--fs-xs); margin-top: var(--sp-2); }
@@ -3183,14 +3184,14 @@ As a API 게이트웨이 운영자, I want Kong의 분당 100회 rate-limiting�
     var tabs = [{ id: "free", title: "자유 캔버스" }].concat(WORKBOOK_MISSIONS.map(function (m) { return { id: m.id, title: m.title }; }));
     return '<div class="workbook-mission-tabs">' + tabs.map(function (t) {
       return '<button class="btn' + (t.id === wbState.missionId ? " active" : "") + '" type="button" data-action="switch-mission" data-mission-id="' + t.id + '">' + escapeHtml(t.title) + '</button>';
-    }).join("") + '</div><p class="empty-hint">탭을 전환하면 현재 캔버스가 초기화됩니다.</p>';
+    }).join("") + '</div><p class="empty-hint" style="margin-top:var(--sp-2);">탭을 전환하면 현재 캔버스가 초기화됩니다.</p>';
   }
 
   function renderWorkbookMissionCard(mission) {
     if (!mission) return "";
     return '<div class="workbook-mission-card"><h3 style="font-size:var(--fs-md);margin-bottom:var(--sp-2);">' + escapeHtml(mission.title) + '</h3>' +
       '<p class="quiz-scenario">' + escapeHtml(mission.desc) + '</p>' +
-      '<div class="quiz-actions"><button class="btn" type="button" data-action="check-mission">체크리스트 확인</button></div>' +
+      '<div class="quiz-actions" style="margin-top:var(--sp-3);"><button class="btn" type="button" data-action="check-mission">체크리스트 확인</button></div>' +
       '<div id="workbookChecklistArea"></div></div>';
   }
 
